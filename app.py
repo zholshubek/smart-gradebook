@@ -26,7 +26,7 @@ menu = st.sidebar.radio("Бөлім таңдаңыз:", [
 # ДЕРЕКТЕР
 # -------------------------------
 data = {
-    'аты': ['Асан', 'Айгүл', 'Нұрсұлтан', 'Динара', 'Ержан', 'Мадина', 'Самат', 'Аружан'],
+    'аты': ['Асан','Айгүл','Нұрсұлтан','Динара','Ержан','Мадина','Самат','Аружан'],
     'математика': [80,50,40,90,65,30,85,55],
     'физика': [70,55,45,95,60,35,88,50],
     'информатика': [85,60,50,92,70,40,90,65],
@@ -92,26 +92,41 @@ if menu == "🏠 Dashboard":
     st.dataframe(df)
 
 # -------------------------------
-# АНАЛИТИКА
+# АНАЛИТИКА (SEABORN PRO)
 # -------------------------------
 elif menu == "📊 Аналитика":
     st.title("📈 Аналитика")
 
-    col1, col2 = st.columns(2)
+    sns.set_style("whitegrid")
 
-    fig1, ax1 = plt.subplots()
-    ax1.bar(df['аты'], df['орташа балл'])
-    ax1.set_title("Орташа балл")
-    col1.pyplot(fig1)
+    # ---- 1 График ----
+    fig1, ax1 = plt.subplots(figsize=(12,6))
 
-    fig2, ax2 = plt.subplots()
-    sns.scatterplot(x='қатысу', y='орташа балл', hue='қауіп', data=df, ax=ax2)
-    ax2.set_title("Қауіпті оқушылар")
-    col2.pyplot(fig2)
+    sns.barplot(
+        x='аты',
+        y='орташа балл',
+        data=df,
+        palette='viridis',
+        ax=ax1
+    )
 
-    fig3, ax3 = plt.subplots()
-    sns.heatmap(df[subjects].corr(), annot=True, ax=ax3)
-    st.pyplot(fig3)
+    ax1.set_title("📊 Оқушылардың орташа баллы", fontsize=16, fontweight='bold')
+    plt.xticks(rotation=45, ha='right')
+
+    # Мәндерді жазу
+    for i, v in enumerate(df['орташа балл']):
+        ax1.text(i, v + 1, str(round(v,1)), ha='center')
+
+    sns.despine()
+    plt.tight_layout()
+
+    st.pyplot(fig1)
+
+    # ---- 2 График (Correlation) ----
+    fig2, ax2 = plt.subplots(figsize=(8,6))
+    sns.heatmap(df[subjects].corr(), annot=True, cmap="coolwarm", ax=ax2)
+    ax2.set_title("Пәндер арасындағы байланыс")
+    st.pyplot(fig2)
 
 # -------------------------------
 # БОЛЖАУ
@@ -143,14 +158,29 @@ elif menu == "📞 Ата-ана":
     st.dataframe(parents[['аты','орташа балл','ұсыныс']])
 
 # -------------------------------
-# РЕЙТИНГ
+# РЕЙТИНГ (SEABORN)
 # -------------------------------
 elif menu == "🏆 Рейтинг":
-    st.title("🏆 Рейтинг")
+    st.title("🏆 Оқушылар рейтингі")
 
     df_sorted = df.sort_values(by='орташа балл', ascending=False)
-    st.dataframe(df_sorted[['аты','орташа балл']])
 
-    fig, ax = plt.subplots()
-    ax.bar(df_sorted['аты'], df_sorted['орташа балл'])
+    fig, ax = plt.subplots(figsize=(12,6))
+
+    sns.barplot(
+        x='аты',
+        y='орташа балл',
+        data=df_sorted,
+        palette='coolwarm',
+        ax=ax
+    )
+
+    plt.xticks(rotation=45, ha='right')
+
+    for i, v in enumerate(df_sorted['орташа балл']):
+        ax.text(i, v + 1, str(round(v,1)), ha='center')
+
+    sns.despine()
+    plt.tight_layout()
+
     st.pyplot(fig)
