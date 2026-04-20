@@ -6,7 +6,7 @@ import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 
 # PDF
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
 
@@ -16,7 +16,7 @@ from reportlab.lib.pagesizes import letter
 st.set_page_config(page_title="Smart School Portal", layout="wide")
 
 # -------------------------------
-# LOGIN
+# LOGIN SYSTEM
 # -------------------------------
 users = {"admin": "1234", "teacher": "1111"}
 
@@ -25,6 +25,7 @@ if "login" not in st.session_state:
 
 if not st.session_state.login:
     st.title("🔐 Жүйеге кіру")
+
     u = st.text_input("Логин")
     p = st.text_input("Құпия сөз", type="password")
 
@@ -33,7 +34,7 @@ if not st.session_state.login:
             st.session_state.login = True
             st.rerun()
         else:
-            st.error("Қате логин")
+            st.error("Қате логин немесе пароль")
 
     st.stop()
 
@@ -52,7 +53,7 @@ menu = st.sidebar.radio("Бөлім:", [
     "🧠 Болжау",
     "👤 Профиль",
     "📲 Хабар",
-    "🧾 PDF",
+    "🧾 PDF есеп",
     "🏆 Рейтинг"
 ])
 
@@ -66,7 +67,7 @@ def load_data():
         df = pd.read_excel(uploaded)
         required = ['аты','математика','физика','информатика','қазақ тілі','ағылшын тілі','қатысу']
         if not all(c in df.columns for c in required):
-            st.error("Excel формат қате!")
+            st.error("❌ Excel формат қате!")
             st.stop()
         return df
     else:
@@ -98,9 +99,9 @@ df['ең әлсіз пән'] = df.apply(weak, axis=1)
 # AI кеңес
 def ai(row):
     if row['орташа балл'] < 50:
-        return f"{row['аты']} әлсіз. {row['ең әлсіз пән']} қиын."
+        return f"{row['аты']} оқуында қиындық бар. {row['ең әлсіз пән']} пәні әлсіз."
     elif row['орташа балл'] < 70:
-        return f"{row['аты']} орташа. {row['ең әлсіз пән']} жақсарту керек."
+        return f"{row['аты']} орташа деңгейде. {row['ең әлсіз пән']} жақсарту керек."
     else:
         return f"{row['аты']} жақсы оқиды."
 
@@ -112,23 +113,23 @@ def tasks(row):
     score = row[sub] if sub!="Жоқ" else 100
 
     if sub=="Жоқ":
-        return "Қажет емес"
+        return "Қосымша тапсырма қажет емес"
     if score < 40:
-        return f"{sub}: 15 қиын есеп"
+        return f"{sub}: 15 күрделі есеп"
     elif score < 60:
         return f"{sub}: 10 орташа есеп"
     else:
-        return f"{sub}: 5 жеңіл есеп"
+        return f"{sub}: 5 жеңіл тапсырма"
 
 df['тапсырма'] = df.apply(tasks, axis=1)
 
 # хабар
 df['хабар'] = df['аты'] + " - " + df['AI']
 
-# progress
+# прогресс
 df['өткен'] = df['орташа балл'] - np.random.randint(0,10,len(df))
 
-# ML
+# ML MODEL
 X = df[subjects+['қатысу']]
 y = df['қауіп']
 model = RandomForestClassifier()
@@ -141,8 +142,8 @@ if menu == "🏠 Dashboard":
     st.markdown("## 📊 Жалпы көрсеткіш")
 
     col1,col2,col3 = st.columns(3)
-    col1.metric("Орташа", round(df['орташа балл'].mean(),2))
-    col2.metric("Қауіпті", df['қауіп'].sum())
+    col1.metric("Орташа балл", round(df['орташа балл'].mean(),2))
+    col2.metric("Қауіпті оқушылар", df['қауіп'].sum())
     col3.metric("Үздік", len(df[df['орташа балл']>80]))
 
     st.dataframe(df)
@@ -181,7 +182,7 @@ elif menu == "🧠 Болжау":
 # -------------------------------
 elif menu == "👤 Профиль":
     s = st.selectbox("Оқушы",df['аты'])
-    st.write(df[df['аты']==s])
+    st.dataframe(df[df['аты']==s])
 
 # -------------------------------
 # MESSAGE
@@ -192,26 +193,46 @@ elif menu == "📲 Хабар":
     st.info(msg)
 
 # -------------------------------
-# PDF
+# PDF REPORT
 # -------------------------------
-elif menu == "🧾 PDF":
-    s = st.selectbox("Оқушы",df['аты'])
-    row = df[df['аты']==s].iloc[0]
+elif menu == "🧾 PDF есеп":
 
-    if st.button("PDF жасау"):
+    student = st.selectbox("Оқушы таңда", df['аты'])
+    row = df[df['аты']==student].iloc[0]
+
+    if st.button("📄 PDF жасау"):
+
+        # график
+        plt.figure(figsize=(6,4))
+        scores = [row[s] for s in subjects]
+        plt.bar(subjects, scores)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig("chart.png")
+        plt.close()
+
         doc = SimpleDocTemplate("report.pdf", pagesize=letter)
         styles = getSampleStyleSheet()
-        content = []
 
-        content.append(Paragraph(f"{row['аты']}", styles["Title"]))
-        content.append(Paragraph(f"Орташа: {row['орташа балл']}", styles["Normal"]))
-        content.append(Paragraph(f"Ұсыныс: {row['AI']}", styles["Normal"]))
+        content = []
+        content.append(Paragraph("ОҚУШЫ ЕСЕБІ", styles["Title"]))
+        content.append(Spacer(1,10))
+        content.append(Paragraph(f"Аты: {row['аты']}", styles["Normal"]))
+        content.append(Paragraph(f"Орташа балл: {row['орташа балл']}", styles["Normal"]))
+        content.append(Paragraph(f"AI: {row['AI']}", styles["Normal"]))
         content.append(Paragraph(f"Тапсырма: {row['тапсырма']}", styles["Normal"]))
+        content.append(Spacer(1,20))
+        content.append(Image("chart.png", width=400, height=250))
 
         doc.build(content)
 
         with open("report.pdf","rb") as f:
-            st.download_button("Жүктеу",f)
+            st.download_button(
+                "Жүктеу",
+                f,
+                file_name=f"{row['аты']}_report.pdf",
+                mime="application/pdf"
+            )
 
 # -------------------------------
 # RATING
