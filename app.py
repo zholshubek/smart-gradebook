@@ -6,9 +6,11 @@ import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 
 # PDF
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 # -------------------------------
 # CONFIG
@@ -16,7 +18,12 @@ from reportlab.lib.pagesizes import letter
 st.set_page_config(page_title="Smart School Portal", layout="wide")
 
 # -------------------------------
-# LOGIN SYSTEM
+# FONT (қазақша үшін)
+# -------------------------------
+pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
+
+# -------------------------------
+# LOGIN
 # -------------------------------
 users = {"admin": "1234", "teacher": "1111"}
 
@@ -25,7 +32,6 @@ if "login" not in st.session_state:
 
 if not st.session_state.login:
     st.title("🔐 Жүйеге кіру")
-
     u = st.text_input("Логин")
     p = st.text_input("Құпия сөз", type="password")
 
@@ -34,7 +40,7 @@ if not st.session_state.login:
             st.session_state.login = True
             st.rerun()
         else:
-            st.error("Қате логин немесе пароль")
+            st.error("Қате логин")
 
     st.stop()
 
@@ -53,7 +59,7 @@ menu = st.sidebar.radio("Бөлім:", [
     "🧠 Болжау",
     "👤 Профиль",
     "📲 Хабар",
-    "🧾 PDF есеп",
+    "🧾 PDF",
     "🏆 Рейтинг"
 ])
 
@@ -65,9 +71,9 @@ uploaded = st.sidebar.file_uploader("Excel жүктеу", type=["xlsx"])
 def load_data():
     if uploaded:
         df = pd.read_excel(uploaded)
-        required = ['аты','математика','физика','информатика','қазақ тілі','ағылшын тілі','қатысу']
-        if not all(c in df.columns for c in required):
-            st.error("❌ Excel формат қате!")
+        req = ['аты','математика','физика','информатика','қазақ тілі','ағылшын тілі','қатысу']
+        if not all(c in df.columns for c in req):
+            st.error("Excel формат қате!")
             st.stop()
         return df
     else:
@@ -96,40 +102,30 @@ def weak(row):
 
 df['ең әлсіз пән'] = df.apply(weak, axis=1)
 
-# AI кеңес
+# AI
 def ai(row):
     if row['орташа балл'] < 50:
-        return f"{row['аты']} оқуында қиындық бар. {row['ең әлсіз пән']} пәні әлсіз."
+        return f"{row['аты']} әлсіз. {row['ең әлсіз пән']} қиын."
     elif row['орташа балл'] < 70:
-        return f"{row['аты']} орташа деңгейде. {row['ең әлсіз пән']} жақсарту керек."
+        return f"{row['аты']} орташа. {row['ең әлсіз пән']} жақсарту керек."
     else:
         return f"{row['аты']} жақсы оқиды."
 
 df['AI'] = df.apply(ai, axis=1)
 
-# SMART TASK
+# TASK
 def tasks(row):
     sub = row['ең әлсіз пән']
-    score = row[sub] if sub!="Жоқ" else 100
-
-    if sub=="Жоқ":
-        return "Қосымша тапсырма қажет емес"
-    if score < 40:
-        return f"{sub}: 15 күрделі есеп"
-    elif score < 60:
-        return f"{sub}: 10 орташа есеп"
-    else:
-        return f"{sub}: 5 жеңіл тапсырма"
+    if sub == "Жоқ":
+        return "Қажет емес"
+    return f"{sub}: қосымша тапсырма"
 
 df['тапсырма'] = df.apply(tasks, axis=1)
 
-# хабар
+df['өткен'] = df['орташа балл'] - np.random.randint(0,10,len(df))
 df['хабар'] = df['аты'] + " - " + df['AI']
 
-# прогресс
-df['өткен'] = df['орташа балл'] - np.random.randint(0,10,len(df))
-
-# ML MODEL
+# ML
 X = df[subjects+['қатысу']]
 y = df['қауіп']
 model = RandomForestClassifier()
@@ -139,32 +135,39 @@ model.fit(X,y)
 # DASHBOARD
 # -------------------------------
 if menu == "🏠 Dashboard":
-    st.markdown("## 📊 Жалпы көрсеткіш")
-
     col1,col2,col3 = st.columns(3)
-    col1.metric("Орташа балл", round(df['орташа балл'].mean(),2))
-    col2.metric("Қауіпті оқушылар", df['қауіп'].sum())
+    col1.metric("Орташа", round(df['орташа балл'].mean(),2))
+    col2.metric("Қауіпті", df['қауіп'].sum())
     col3.metric("Үздік", len(df[df['орташа балл']>80]))
 
     st.dataframe(df)
 
 # -------------------------------
-# ANALYTICS
+# ANALYTICS (FULL)
 # -------------------------------
 elif menu == "📊 Аналитика":
-    sns.set_style("whitegrid")
 
-    fig,ax = plt.subplots(figsize=(12,6))
-    sns.barplot(x='аты',y='орташа балл',data=df,ax=ax)
+    col1,col2 = st.columns(2)
+
+    fig1, ax1 = plt.subplots()
+    sns.barplot(x='аты', y='орташа балл', data=df, ax=ax1)
     plt.xticks(rotation=45)
-    st.pyplot(fig)
+    col1.pyplot(fig1)
 
-    fig2,ax2 = plt.subplots()
-    ax2.plot(df['аты'],df['орташа балл'],label="қазір")
-    ax2.plot(df['аты'],df['өткен'],label="өткен")
+    fig2, ax2 = plt.subplots()
+    sns.scatterplot(x='қатысу', y='орташа балл', data=df, hue='қауіп', ax=ax2)
+    col2.pyplot(fig2)
+
+    fig3, ax3 = plt.subplots()
+    sns.heatmap(df[subjects].corr(), annot=True, ax=ax3)
+    st.pyplot(fig3)
+
+    fig4, ax4 = plt.subplots()
+    ax4.plot(df['аты'], df['орташа балл'], label="қазір")
+    ax4.plot(df['аты'], df['өткен'], label="өткен")
     plt.xticks(rotation=45)
     plt.legend()
-    st.pyplot(fig2)
+    st.pyplot(fig4)
 
 # -------------------------------
 # PREDICTION
@@ -181,66 +184,60 @@ elif menu == "🧠 Болжау":
 # PROFILE
 # -------------------------------
 elif menu == "👤 Профиль":
-    s = st.selectbox("Оқушы",df['аты'])
+    s = st.selectbox("Оқушы", df['аты'])
     st.dataframe(df[df['аты']==s])
 
 # -------------------------------
 # MESSAGE
 # -------------------------------
 elif menu == "📲 Хабар":
-    s = st.selectbox("Оқушы таңда",df['аты'])
-    msg = df[df['аты']==s]['хабар'].values[0]
-    st.info(msg)
+    s = st.selectbox("Оқушы", df['аты'])
+    st.info(df[df['аты']==s]['хабар'].values[0])
 
 # -------------------------------
-# PDF REPORT
+# PDF
 # -------------------------------
-elif menu == "🧾 PDF есеп":
+elif menu == "🧾 PDF":
+    s = st.selectbox("Оқушы", df['аты'])
+    row = df[df['аты']==s].iloc[0]
 
-    student = st.selectbox("Оқушы таңда", df['аты'])
-    row = df[df['аты']==student].iloc[0]
+    if st.button("PDF жасау"):
 
-    if st.button("📄 PDF жасау"):
-
-        # график
-        plt.figure(figsize=(6,4))
+        plt.figure()
         scores = [row[s] for s in subjects]
         plt.bar(subjects, scores)
         plt.xticks(rotation=45)
-        plt.tight_layout()
         plt.savefig("chart.png")
         plt.close()
 
         doc = SimpleDocTemplate("report.pdf", pagesize=letter)
         styles = getSampleStyleSheet()
 
+        # font fix
+        for style in styles.byName.values():
+            style.fontName = 'DejaVu'
+
         content = []
-        content.append(Paragraph("ОҚУШЫ ЕСЕБІ", styles["Title"]))
+        content.append(Paragraph("Оқушы есебі", styles["Title"]))
         content.append(Spacer(1,10))
         content.append(Paragraph(f"Аты: {row['аты']}", styles["Normal"]))
-        content.append(Paragraph(f"Орташа балл: {row['орташа балл']}", styles["Normal"]))
-        content.append(Paragraph(f"AI: {row['AI']}", styles["Normal"]))
-        content.append(Paragraph(f"Тапсырма: {row['тапсырма']}", styles["Normal"]))
+        content.append(Paragraph(f"Орташа: {row['орташа балл']}", styles["Normal"]))
+        content.append(Paragraph(f"Ұсыныс: {row['AI']}", styles["Normal"]))
         content.append(Spacer(1,20))
         content.append(Image("chart.png", width=400, height=250))
 
         doc.build(content)
 
         with open("report.pdf","rb") as f:
-            st.download_button(
-                "Жүктеу",
-                f,
-                file_name=f"{row['аты']}_report.pdf",
-                mime="application/pdf"
-            )
+            st.download_button("Жүктеу", f, file_name="report.pdf", mime="application/pdf")
 
 # -------------------------------
 # RATING
 # -------------------------------
 elif menu == "🏆 Рейтинг":
-    d = df.sort_values(by='орташа балл',ascending=False)
+    d = df.sort_values(by='орташа балл', ascending=False)
 
-    fig,ax = plt.subplots(figsize=(12,6))
-    sns.barplot(x='аты',y='орташа балл',data=d,ax=ax)
+    fig, ax = plt.subplots()
+    sns.barplot(x='аты', y='орташа балл', data=d, ax=ax)
     plt.xticks(rotation=45)
     st.pyplot(fig)
