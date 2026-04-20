@@ -26,7 +26,7 @@ menu = st.sidebar.radio("Бөлім таңдаңыз:", [
 # ДЕРЕКТЕР
 # -------------------------------
 data = {
-    'аты': ['A','B','C','D','E','F','G','H'],
+    'аты': ['Асан', 'Айгүл', 'Нұрсұлтан', 'Динара', 'Ержан', 'Мадина', 'Самат', 'Аружан'],
     'математика': [80,50,40,90,65,30,85,55],
     'физика': [70,55,45,95,60,35,88,50],
     'информатика': [85,60,50,92,70,40,90,65],
@@ -66,13 +66,15 @@ def recommendation(row):
 
 df['ұсыныс'] = df.apply(recommendation, axis=1)
 
-# ML модель
+# -------------------------------
+# ML МОДЕЛЬ
+# -------------------------------
 X = df[subjects + ['қатысу']]
 y = df['қауіп']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
-model = RandomForestClassifier()
+model = RandomForestClassifier(random_state=42)
 model.fit(X_train, y_train)
 
 # -------------------------------
@@ -82,18 +84,12 @@ if menu == "🏠 Dashboard":
     st.title("📊 Жалпы көрсеткіштер")
 
     col1, col2, col3 = st.columns(3)
-
     col1.metric("Орташа балл", round(df['орташа балл'].mean(),2))
     col2.metric("Қауіпті %", f"{round(df['қауіп'].mean()*100,1)}%")
     col3.metric("Оқушы саны", len(df))
 
     st.subheader("📋 Оқушылар тізімі")
-
-    # Түсті белгілеу
-    def color_risk(val):
-        return "background-color: red" if val == 1 else "background-color: lightgreen"
-
-    st.dataframe(df.style.applymap(color_risk, subset=['қауіп']))
+    st.dataframe(df)
 
 # -------------------------------
 # АНАЛИТИКА
@@ -103,19 +99,16 @@ elif menu == "📊 Аналитика":
 
     col1, col2 = st.columns(2)
 
-    # Бар график
     fig1, ax1 = plt.subplots()
     ax1.bar(df['аты'], df['орташа балл'])
     ax1.set_title("Орташа балл")
     col1.pyplot(fig1)
 
-    # Scatter
     fig2, ax2 = plt.subplots()
     sns.scatterplot(x='қатысу', y='орташа балл', hue='қауіп', data=df, ax=ax2)
     ax2.set_title("Қауіпті оқушылар")
     col2.pyplot(fig2)
 
-    # Heatmap
     fig3, ax3 = plt.subplots()
     sns.heatmap(df[subjects].corr(), annot=True, ax=ax3)
     st.pyplot(fig3)
@@ -147,7 +140,6 @@ elif menu == "📞 Ата-ана":
     st.title("📞 Ата-анамен жұмыс")
 
     parents = df[df['ұсыныс'].str.contains("Ата-ана")]
-
     st.dataframe(parents[['аты','орташа балл','ұсыныс']])
 
 # -------------------------------
@@ -157,8 +149,6 @@ elif menu == "🏆 Рейтинг":
     st.title("🏆 Рейтинг")
 
     df_sorted = df.sort_values(by='орташа балл', ascending=False)
-
-    st.subheader("ТОП оқушылар")
     st.dataframe(df_sorted[['аты','орташа балл']])
 
     fig, ax = plt.subplots()
