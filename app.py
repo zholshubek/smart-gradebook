@@ -3,12 +3,18 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, accuracy_score
 
 st.set_page_config(page_title="Ақылды журнал", layout="wide")
 
-st.title("🤖 Ақылды журнал")
+st.title("🤖 Ақылды журнал (Smart Gradebook)")
 
+# -------------------------------
+# ДЕРЕКТЕР
+# -------------------------------
 data = {
     'аты': ['A','B','C','D','E','F','G','H'],
     'математика': [80,50,40,90,65,30,85,55],
@@ -23,9 +29,14 @@ df = pd.DataFrame(data)
 
 subjects = ['математика','физика','информатика','қазақ тілі','ағылшын тілі']
 
+# -------------------------------
+# ЕСЕПТЕУЛЕР
+# -------------------------------
 df['орташа балл'] = df[subjects].mean(axis=1)
+
 df['қауіп'] = np.where((df['орташа балл'] < 60) | (df['қатысу'] < 60), 1, 0)
 
+# Әлсіз пән
 def weak_subject(row):
     low = row[subjects][row[subjects] < 50]
     if len(low) == 0:
@@ -34,6 +45,7 @@ def weak_subject(row):
 
 df['ең әлсіз пән'] = df.apply(weak_subject, axis=1)
 
+# Ұсыныс
 def recommendation(row):
     if row['орташа балл'] < 60 and row['қатысу'] < 60:
         return f"Ата-анамен кездесу ({row['ең әлсіз пән']})"
@@ -46,19 +58,70 @@ def recommendation(row):
 
 df['ұсыныс'] = df.apply(recommendation, axis=1)
 
+# -------------------------------
+# КӨРСЕТУ
+# -------------------------------
+st.subheader("📊 Оқушылар деректері")
 st.dataframe(df)
 
-st.subheader("📊 KPI")
-col1, col2 = st.columns(2)
+# KPI
+col1, col2, col3 = st.columns(3)
 col1.metric("Орташа балл", round(df['орташа балл'].mean(),2))
-col2.metric("Қауіпті %", round(df['қауіп'].mean()*100,1))
+col2.metric("Қауіпті %", f"{round(df['қауіп'].mean()*100,1)}%")
+col3.metric("Оқушы саны", len(df))
 
-st.subheader("📈 График")
-fig, ax = plt.subplots()
-ax.bar(df['аты'], df['орташа балл'])
-st.pyplot(fig)
+# -------------------------------
+# ML МОДЕЛЬ
+# -------------------------------
+X = df[subjects + ['қатысу']]
+y = df['қауіп']
 
-st.subheader("🧠 Болжау")
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+model = RandomForestClassifier(random_state=42)
+model.fit(X_train, y_train)
+
+y_pred = model.predict(X_test)
+
+# Метрика
+st.subheader("🤖 Модель нәтижесі")
+st.write("Accuracy:", accuracy_score(y_test, y_pred))
+st.text("Classification report:")
+st.text(classification_report(y_test, y_pred))
+
+# -------------------------------
+# ВИЗУАЛИЗАЦИЯ
+# -------------------------------
+st.subheader("📈 Аналитика")
+
+# Bar chart
+fig1, ax1 = plt.subplots()
+ax1.bar(df['аты'], df['орташа балл'])
+ax1.set_title("Орташа балл")
+st.pyplot(fig1)
+
+# Scatter
+fig2, ax2 = plt.subplots()
+sns.scatterplot(x='қатысу', y='орташа балл', hue='қауіп', data=df, ax=ax2)
+ax2.set_title("Қауіпті оқушылар")
+st.pyplot(fig2)
+
+# Heatmap
+fig3, ax3 = plt.subplots()
+sns.heatmap(df[subjects].corr(), annot=True, ax=ax3)
+ax3.set_title("Пәндер байланысы")
+st.pyplot(fig3)
+
+# Әлсіз пән
+fig4, ax4 = plt.subplots()
+df['ең әлсіз пән'].value_counts().plot(kind='bar', ax=ax4)
+ax4.set_title("Әлсіз пәндер")
+st.pyplot(fig4)
+
+# -------------------------------
+# БОЛЖАУ
+# -------------------------------
+st.subheader("🧠 Жаңа оқушыны болжау")
 
 math = st.slider("Математика", 0, 100, 60)
 physics = st.slider("Физика", 0, 100, 60)
@@ -67,16 +130,17 @@ kaz = st.slider("Қазақ тілі", 0, 100, 60)
 eng = st.slider("Ағылшын тілі", 0, 100, 60)
 att = st.slider("Қатысу", 0, 100, 70)
 
-X = df[subjects + ['қатысу']]
-y = df['қауіп']
-
-model = RandomForestClassifier()
-model.fit(X, y)
-
-pred = model.predict([[math, physics, info, kaz, eng, att]])
+new_data = [[math, physics, info, kaz, eng, att]]
 
 if st.button("Болжау"):
+    pred = model.predict(new_data)
     if pred[0] == 1:
-        st.error("⚠️ Қауіпті")
+        st.error("⚠️ Қауіпті оқушы!")
     else:
-        st.success("✅ Жақсы")
+        st.success("✅ Қауіпсіз оқушы")
+
+# -------------------------------
+# АТА-АНА
+# -------------------------------
+st.subheader("📞 Ата-анамен жұмыс")
+st.dataframe(df[df['ұсыныс'].str.contains("Ата-ана")][['аты','ұсыныс']])
