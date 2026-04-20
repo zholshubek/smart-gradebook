@@ -8,15 +8,25 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score
 
-st.set_page_config(page_title="Ақылды журнал", layout="wide")
+st.set_page_config(page_title="Ақылды журнал PRO", layout="wide")
 
-st.title("🤖 Ақылды журнал (Smart Gradebook)")
+# -------------------------------
+# SIDEBAR
+# -------------------------------
+st.sidebar.title("📚 Меню")
+menu = st.sidebar.radio("Бөлім таңдаңыз:", [
+    "🏠 Dashboard",
+    "📊 Аналитика",
+    "🧠 Болжау",
+    "📞 Ата-ана",
+    "🏆 Рейтинг"
+])
 
 # -------------------------------
 # ДЕРЕКТЕР
 # -------------------------------
 data = {
-    'аты': ['Айман','Bерік','Cерік','Дамир','Eркебулан','Fани','Гулбахира','Hазерке'],
+    'аты': ['A','B','C','D','E','F','G','H'],
     'математика': [80,50,40,90,65,30,85,55],
     'физика': [70,55,45,95,60,35,88,50],
     'информатика': [85,60,50,92,70,40,90,65],
@@ -36,7 +46,6 @@ df['орташа балл'] = df[subjects].mean(axis=1)
 
 df['қауіп'] = np.where((df['орташа балл'] < 60) | (df['қатысу'] < 60), 1, 0)
 
-# Әлсіз пән
 def weak_subject(row):
     low = row[subjects][row[subjects] < 50]
     if len(low) == 0:
@@ -45,7 +54,6 @@ def weak_subject(row):
 
 df['ең әлсіз пән'] = df.apply(weak_subject, axis=1)
 
-# Ұсыныс
 def recommendation(row):
     if row['орташа балл'] < 60 and row['қатысу'] < 60:
         return f"Ата-анамен кездесу ({row['ең әлсіз пән']})"
@@ -58,89 +66,101 @@ def recommendation(row):
 
 df['ұсыныс'] = df.apply(recommendation, axis=1)
 
-# -------------------------------
-# КӨРСЕТУ
-# -------------------------------
-st.subheader("📊 Оқушылар деректері")
-st.dataframe(df)
-
-# KPI
-col1, col2, col3 = st.columns(3)
-col1.metric("Орташа балл", round(df['орташа балл'].mean(),2))
-col2.metric("Қауіпті %", f"{round(df['қауіп'].mean()*100,1)}%")
-col3.metric("Оқушы саны", len(df))
-
-# -------------------------------
-# ML МОДЕЛЬ
-# -------------------------------
+# ML модель
 X = df[subjects + ['қатысу']]
 y = df['қауіп']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
-model = RandomForestClassifier(random_state=42)
+model = RandomForestClassifier()
 model.fit(X_train, y_train)
 
-y_pred = model.predict(X_test)
+# -------------------------------
+# DASHBOARD
+# -------------------------------
+if menu == "🏠 Dashboard":
+    st.title("📊 Жалпы көрсеткіштер")
 
-# Метрика
-st.subheader("🤖 Модель нәтижесі")
-st.write("Accuracy:", accuracy_score(y_test, y_pred))
-st.text("Classification report:")
-st.text(classification_report(y_test, y_pred))
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Орташа балл", round(df['орташа балл'].mean(),2))
+    col2.metric("Қауіпті %", f"{round(df['қауіп'].mean()*100,1)}%")
+    col3.metric("Оқушы саны", len(df))
+
+    st.subheader("📋 Оқушылар тізімі")
+
+    # Түсті белгілеу
+    def color_risk(val):
+        return "background-color: red" if val == 1 else "background-color: lightgreen"
+
+    st.dataframe(df.style.applymap(color_risk, subset=['қауіп']))
 
 # -------------------------------
-# ВИЗУАЛИЗАЦИЯ
+# АНАЛИТИКА
 # -------------------------------
-st.subheader("📈 Аналитика")
+elif menu == "📊 Аналитика":
+    st.title("📈 Аналитика")
 
-# Bar chart
-fig1, ax1 = plt.subplots()
-ax1.bar(df['аты'], df['орташа балл'])
-ax1.set_title("Орташа балл")
-st.pyplot(fig1)
+    col1, col2 = st.columns(2)
 
-# Scatter
-fig2, ax2 = plt.subplots()
-sns.scatterplot(x='қатысу', y='орташа балл', hue='қауіп', data=df, ax=ax2)
-ax2.set_title("Қауіпті оқушылар")
-st.pyplot(fig2)
+    # Бар график
+    fig1, ax1 = plt.subplots()
+    ax1.bar(df['аты'], df['орташа балл'])
+    ax1.set_title("Орташа балл")
+    col1.pyplot(fig1)
 
-# Heatmap
-fig3, ax3 = plt.subplots()
-sns.heatmap(df[subjects].corr(), annot=True, ax=ax3)
-ax3.set_title("Пәндер байланысы")
-st.pyplot(fig3)
+    # Scatter
+    fig2, ax2 = plt.subplots()
+    sns.scatterplot(x='қатысу', y='орташа балл', hue='қауіп', data=df, ax=ax2)
+    ax2.set_title("Қауіпті оқушылар")
+    col2.pyplot(fig2)
 
-# Әлсіз пән
-fig4, ax4 = plt.subplots()
-df['ең әлсіз пән'].value_counts().plot(kind='bar', ax=ax4)
-ax4.set_title("Әлсіз пәндер")
-st.pyplot(fig4)
+    # Heatmap
+    fig3, ax3 = plt.subplots()
+    sns.heatmap(df[subjects].corr(), annot=True, ax=ax3)
+    st.pyplot(fig3)
 
 # -------------------------------
 # БОЛЖАУ
 # -------------------------------
-st.subheader("🧠 Жаңа оқушыны болжау")
+elif menu == "🧠 Болжау":
+    st.title("🧠 Жаңа оқушыны болжау")
 
-math = st.slider("Математика", 0, 100, 60)
-physics = st.slider("Физика", 0, 100, 60)
-info = st.slider("Информатика", 0, 100, 60)
-kaz = st.slider("Қазақ тілі", 0, 100, 60)
-eng = st.slider("Ағылшын тілі", 0, 100, 60)
-att = st.slider("Қатысу", 0, 100, 70)
+    math = st.slider("Математика", 0, 100, 60)
+    physics = st.slider("Физика", 0, 100, 60)
+    info = st.slider("Информатика", 0, 100, 60)
+    kaz = st.slider("Қазақ тілі", 0, 100, 60)
+    eng = st.slider("Ағылшын тілі", 0, 100, 60)
+    att = st.slider("Қатысу", 0, 100, 70)
 
-new_data = [[math, physics, info, kaz, eng, att]]
-
-if st.button("Болжау"):
-    pred = model.predict(new_data)
-    if pred[0] == 1:
-        st.error("⚠️ Қауіпті оқушы!")
-    else:
-        st.success("✅ Қауіпсіз оқушы")
+    if st.button("Болжау"):
+        pred = model.predict([[math, physics, info, kaz, eng, att]])
+        if pred[0] == 1:
+            st.error("⚠️ Қауіпті оқушы!")
+        else:
+            st.success("✅ Қауіпсіз")
 
 # -------------------------------
 # АТА-АНА
 # -------------------------------
-st.subheader("📞 Ата-анамен жұмыс")
-st.dataframe(df[df['ұсыныс'].str.contains("Ата-ана")][['аты','ұсыныс']])
+elif menu == "📞 Ата-ана":
+    st.title("📞 Ата-анамен жұмыс")
+
+    parents = df[df['ұсыныс'].str.contains("Ата-ана")]
+
+    st.dataframe(parents[['аты','орташа балл','ұсыныс']])
+
+# -------------------------------
+# РЕЙТИНГ
+# -------------------------------
+elif menu == "🏆 Рейтинг":
+    st.title("🏆 Рейтинг")
+
+    df_sorted = df.sort_values(by='орташа балл', ascending=False)
+
+    st.subheader("ТОП оқушылар")
+    st.dataframe(df_sorted[['аты','орташа балл']])
+
+    fig, ax = plt.subplots()
+    ax.bar(df_sorted['аты'], df_sorted['орташа балл'])
+    st.pyplot(fig)
