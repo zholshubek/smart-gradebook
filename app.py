@@ -5,6 +5,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 
+# PDF
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
+
 # -------------------------------
 # CONFIG
 # -------------------------------
@@ -20,7 +25,6 @@ if "login" not in st.session_state:
 
 if not st.session_state.login:
     st.title("🔐 Жүйеге кіру")
-
     u = st.text_input("Логин")
     p = st.text_input("Құпия сөз", type="password")
 
@@ -29,7 +33,7 @@ if not st.session_state.login:
             st.session_state.login = True
             st.rerun()
         else:
-            st.error("Қате логин немесе пароль")
+            st.error("Қате логин")
 
     st.stop()
 
@@ -47,20 +51,21 @@ menu = st.sidebar.radio("Бөлім:", [
     "📊 Аналитика",
     "🧠 Болжау",
     "👤 Профиль",
-    "📲 Хабарлама",
+    "📲 Хабар",
+    "🧾 PDF",
     "🏆 Рейтинг"
 ])
 
 # -------------------------------
-# DATA
+# DATA LOAD
 # -------------------------------
 uploaded = st.sidebar.file_uploader("Excel жүктеу", type=["xlsx"])
 
-def load():
+def load_data():
     if uploaded:
         df = pd.read_excel(uploaded)
-        cols = ['аты','математика','физика','информатика','қазақ тілі','ағылшын тілі','қатысу']
-        if not all(c in df.columns for c in cols):
+        required = ['аты','математика','физика','информатика','қазақ тілі','ағылшын тілі','қатысу']
+        if not all(c in df.columns for c in required):
             st.error("Excel формат қате!")
             st.stop()
         return df
@@ -75,11 +80,11 @@ def load():
             'қатысу':[90,60,50,95,70,40,92,65]
         })
 
-df = load()
+df = load_data()
 subjects = ['математика','физика','информатика','қазақ тілі','ағылшын тілі']
 
 # -------------------------------
-# PROCESS
+# PROCESSING
 # -------------------------------
 df['орташа балл'] = df[subjects].mean(axis=1)
 df['қауіп'] = np.where((df['орташа балл'] < 60) | (df['қатысу'] < 60), 1, 0)
@@ -93,29 +98,34 @@ df['ең әлсіз пән'] = df.apply(weak, axis=1)
 # AI кеңес
 def ai(row):
     if row['орташа балл'] < 50:
-        return f"{row['аты']} - {row['ең әлсіз пән']} өте төмен. Жеке жұмыс қажет."
+        return f"{row['аты']} әлсіз. {row['ең әлсіз пән']} қиын."
     elif row['орташа балл'] < 70:
-        return f"{row['аты']} - {row['ең әлсіз пән']} жақсарту керек."
+        return f"{row['аты']} орташа. {row['ең әлсіз пән']} жақсарту керек."
     else:
         return f"{row['аты']} жақсы оқиды."
 
-df['AI кеңес'] = df.apply(ai, axis=1)
+df['AI'] = df.apply(ai, axis=1)
 
-# тапсырма
-tasks = {
-    "математика":"10 есеп",
-    "физика":"5 есеп",
-    "информатика":"Python практика",
-    "қазақ тілі":"мәтін жазу",
-    "ағылшын тілі":"20 сөз жаттау"
-}
+# SMART TASK
+def tasks(row):
+    sub = row['ең әлсіз пән']
+    score = row[sub] if sub!="Жоқ" else 100
 
-df['тапсырма'] = df['ең әлсіз пән'].map(tasks).fillna("Қайталау")
+    if sub=="Жоқ":
+        return "Қажет емес"
+    if score < 40:
+        return f"{sub}: 15 қиын есеп"
+    elif score < 60:
+        return f"{sub}: 10 орташа есеп"
+    else:
+        return f"{sub}: 5 жеңіл есеп"
 
-# ата-ана хабар
-df['хабар'] = df['аты'] + " - " + df['AI кеңес']
+df['тапсырма'] = df.apply(tasks, axis=1)
 
-# прогресс (демо)
+# хабар
+df['хабар'] = df['аты'] + " - " + df['AI']
+
+# progress
 df['өткен'] = df['орташа балл'] - np.random.randint(0,10,len(df))
 
 # ML
@@ -128,7 +138,7 @@ model.fit(X,y)
 # DASHBOARD
 # -------------------------------
 if menu == "🏠 Dashboard":
-    st.title("📊 Dashboard")
+    st.markdown("## 📊 Жалпы көрсеткіш")
 
     col1,col2,col3 = st.columns(3)
     col1.metric("Орташа", round(df['орташа балл'].mean(),2))
@@ -141,8 +151,6 @@ if menu == "🏠 Dashboard":
 # ANALYTICS
 # -------------------------------
 elif menu == "📊 Аналитика":
-    st.title("📈 Аналитика")
-
     sns.set_style("whitegrid")
 
     fig,ax = plt.subplots(figsize=(12,6))
@@ -150,7 +158,6 @@ elif menu == "📊 Аналитика":
     plt.xticks(rotation=45)
     st.pyplot(fig)
 
-    # progress
     fig2,ax2 = plt.subplots()
     ax2.plot(df['аты'],df['орташа балл'],label="қазір")
     ax2.plot(df['аты'],df['өткен'],label="өткен")
@@ -162,8 +169,6 @@ elif menu == "📊 Аналитика":
 # PREDICTION
 # -------------------------------
 elif menu == "🧠 Болжау":
-    st.title("🧠 Болжау")
-
     vals = [st.slider(s,0,100,60) for s in subjects]
     att = st.slider("қатысу",0,100,70)
 
@@ -175,28 +180,43 @@ elif menu == "🧠 Болжау":
 # PROFILE
 # -------------------------------
 elif menu == "👤 Профиль":
-    st.title("👤 Профиль")
-
     s = st.selectbox("Оқушы",df['аты'])
-    st.dataframe(df[df['аты']==s])
+    st.write(df[df['аты']==s])
 
 # -------------------------------
 # MESSAGE
 # -------------------------------
-elif menu == "📲 Хабарлама":
-    st.title("📲 Ата-ана хабар")
-
+elif menu == "📲 Хабар":
     s = st.selectbox("Оқушы таңда",df['аты'])
     msg = df[df['аты']==s]['хабар'].values[0]
-
     st.info(msg)
+
+# -------------------------------
+# PDF
+# -------------------------------
+elif menu == "🧾 PDF":
+    s = st.selectbox("Оқушы",df['аты'])
+    row = df[df['аты']==s].iloc[0]
+
+    if st.button("PDF жасау"):
+        doc = SimpleDocTemplate("report.pdf", pagesize=letter)
+        styles = getSampleStyleSheet()
+        content = []
+
+        content.append(Paragraph(f"{row['аты']}", styles["Title"]))
+        content.append(Paragraph(f"Орташа: {row['орташа балл']}", styles["Normal"]))
+        content.append(Paragraph(f"Ұсыныс: {row['AI']}", styles["Normal"]))
+        content.append(Paragraph(f"Тапсырма: {row['тапсырма']}", styles["Normal"]))
+
+        doc.build(content)
+
+        with open("report.pdf","rb") as f:
+            st.download_button("Жүктеу",f)
 
 # -------------------------------
 # RATING
 # -------------------------------
 elif menu == "🏆 Рейтинг":
-    st.title("🏆 Рейтинг")
-
     d = df.sort_values(by='орташа балл',ascending=False)
 
     fig,ax = plt.subplots(figsize=(12,6))
