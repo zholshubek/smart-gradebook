@@ -6,44 +6,80 @@ import seaborn as sns
 
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import accuracy_score
 
-st.set_page_config(page_title="Ақылды журнал PRO", layout="wide")
+st.set_page_config(page_title="Мектеп порталы", layout="wide")
 
 # -------------------------------
-# SIDEBAR
+# 🔐 LOGIN SYSTEM
+# -------------------------------
+users = {
+    "admin": "1234",
+    "teacher": "1111"
+}
+
+if "login" not in st.session_state:
+    st.session_state.login = False
+
+if not st.session_state.login:
+    st.title("🔐 Мектеп порталына кіру")
+
+    username = st.text_input("Логин")
+    password = st.text_input("Құпия сөз", type="password")
+
+    if st.button("Кіру"):
+        if username in users and users[username] == password:
+            st.session_state.login = True
+            st.session_state.user = username
+            st.success("Сәтті кірдіңіз!")
+            st.rerun()
+        else:
+            st.error("Қате логин немесе пароль")
+
+    st.stop()
+
+# -------------------------------
+# 📂 SIDEBAR
 # -------------------------------
 st.sidebar.title("📚 Меню")
-menu = st.sidebar.radio("Бөлім таңдаңыз:", [
+
+menu = st.sidebar.radio("Бөлім:", [
     "🏠 Dashboard",
     "📊 Аналитика",
     "🧠 Болжау",
+    "👤 Оқушы профилі",
     "📞 Ата-ана",
     "🏆 Рейтинг"
 ])
 
 # -------------------------------
-# ДЕРЕКТЕР
+# 📂 EXCEL ЖҮКТЕУ
 # -------------------------------
-data = {
-    'аты': ['Асан','Айгүл','Нұрсұлтан','Динара','Ержан','Мадина','Самат','Аружан'],
-    'математика': [80,50,40,90,65,30,85,55],
-    'физика': [70,55,45,95,60,35,88,50],
-    'информатика': [85,60,50,92,70,40,90,65],
-    'қазақ тілі': [75,58,48,88,68,45,86,60],
-    'ағылшын тілі': [78,52,46,91,66,38,87,58],
-    'қатысу': [90,60,50,95,70,40,92,65]
-}
+st.sidebar.subheader("📂 Деректер жүктеу")
 
-df = pd.DataFrame(data)
+uploaded_file = st.sidebar.file_uploader("Excel файл (.xlsx)", type=["xlsx"])
+
+if uploaded_file:
+    df = pd.read_excel(uploaded_file)
+else:
+    # Демо дерек
+    data = {
+        'аты': ['Асан','Айгүл','Нұрсұлтан','Динара','Ержан','Мадина','Самат','Аружан'],
+        'математика': [80,50,40,90,65,30,85,55],
+        'физика': [70,55,45,95,60,35,88,50],
+        'информатика': [85,60,50,92,70,40,90,65],
+        'қазақ тілі': [75,58,48,88,68,45,86,60],
+        'ағылшын тілі': [78,52,46,91,66,38,87,58],
+        'қатысу': [90,60,50,95,70,40,92,65]
+    }
+    df = pd.DataFrame(data)
 
 subjects = ['математика','физика','информатика','қазақ тілі','ағылшын тілі']
 
 # -------------------------------
-# ЕСЕПТЕУЛЕР
+# 📊 ЕСЕПТЕУ
 # -------------------------------
 df['орташа балл'] = df[subjects].mean(axis=1)
-
 df['қауіп'] = np.where((df['орташа балл'] < 60) | (df['қатысу'] < 60), 1, 0)
 
 def weak_subject(row):
@@ -67,72 +103,50 @@ def recommendation(row):
 df['ұсыныс'] = df.apply(recommendation, axis=1)
 
 # -------------------------------
-# ML МОДЕЛЬ
+# 🤖 ML MODEL
 # -------------------------------
 X = df[subjects + ['қатысу']]
 y = df['қауіп']
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-
-model = RandomForestClassifier(random_state=42)
-model.fit(X_train, y_train)
+model = RandomForestClassifier()
+model.fit(X, y)
 
 # -------------------------------
-# DASHBOARD
+# 🏠 DASHBOARD
 # -------------------------------
 if menu == "🏠 Dashboard":
-    st.title("📊 Жалпы көрсеткіштер")
+    st.title("📊 Жалпы көрсеткіш")
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Орташа балл", round(df['орташа балл'].mean(),2))
     col2.metric("Қауіпті %", f"{round(df['қауіп'].mean()*100,1)}%")
     col3.metric("Оқушы саны", len(df))
 
-    st.subheader("📋 Оқушылар тізімі")
     st.dataframe(df)
 
 # -------------------------------
-# АНАЛИТИКА (SEABORN PRO)
+# 📊 АНАЛИТИКА
 # -------------------------------
 elif menu == "📊 Аналитика":
     st.title("📈 Аналитика")
 
     sns.set_style("whitegrid")
 
-    # ---- 1 График ----
-    fig1, ax1 = plt.subplots(figsize=(12,6))
+    fig, ax = plt.subplots(figsize=(12,6))
+    sns.barplot(x='аты', y='орташа балл', data=df, palette='viridis', ax=ax)
 
-    sns.barplot(
-        x='аты',
-        y='орташа балл',
-        data=df,
-        palette='viridis',
-        ax=ax1
-    )
+    plt.xticks(rotation=45)
 
-    ax1.set_title("📊 Оқушылардың орташа баллы", fontsize=16, fontweight='bold')
-    plt.xticks(rotation=45, ha='right')
-
-    # Мәндерді жазу
     for i, v in enumerate(df['орташа балл']):
-        ax1.text(i, v + 1, str(round(v,1)), ha='center')
+        ax.text(i, v+1, str(round(v,1)), ha='center')
 
-    sns.despine()
-    plt.tight_layout()
-
-    st.pyplot(fig1)
-
-    # ---- 2 График (Correlation) ----
-    fig2, ax2 = plt.subplots(figsize=(8,6))
-    sns.heatmap(df[subjects].corr(), annot=True, cmap="coolwarm", ax=ax2)
-    ax2.set_title("Пәндер арасындағы байланыс")
-    st.pyplot(fig2)
+    st.pyplot(fig)
 
 # -------------------------------
-# БОЛЖАУ
+# 🧠 БОЛЖАУ
 # -------------------------------
 elif menu == "🧠 Болжау":
-    st.title("🧠 Жаңа оқушыны болжау")
+    st.title("🧠 Болжау")
 
     math = st.slider("Математика", 0, 100, 60)
     physics = st.slider("Физика", 0, 100, 60)
@@ -144,43 +158,42 @@ elif menu == "🧠 Болжау":
     if st.button("Болжау"):
         pred = model.predict([[math, physics, info, kaz, eng, att]])
         if pred[0] == 1:
-            st.error("⚠️ Қауіпті оқушы!")
+            st.error("⚠️ Қауіпті")
         else:
-            st.success("✅ Қауіпсіз")
+            st.success("✅ Жақсы")
 
 # -------------------------------
-# АТА-АНА
+# 👤 ПРОФИЛЬ
+# -------------------------------
+elif menu == "👤 Оқушы профилі":
+    st.title("👤 Оқушы профилі")
+
+    student = st.selectbox("Оқушы таңдаңыз", df['аты'])
+    st.dataframe(df[df['аты'] == student])
+
+# -------------------------------
+# 📞 АТА-АНА
 # -------------------------------
 elif menu == "📞 Ата-ана":
     st.title("📞 Ата-анамен жұмыс")
 
     parents = df[df['ұсыныс'].str.contains("Ата-ана")]
-    st.dataframe(parents[['аты','орташа балл','ұсыныс']])
+    st.dataframe(parents[['аты','ұсыныс']])
 
 # -------------------------------
-# РЕЙТИНГ (SEABORN)
+# 🏆 РЕЙТИНГ
 # -------------------------------
 elif menu == "🏆 Рейтинг":
-    st.title("🏆 Оқушылар рейтингі")
+    st.title("🏆 Рейтинг")
 
     df_sorted = df.sort_values(by='орташа балл', ascending=False)
 
     fig, ax = plt.subplots(figsize=(12,6))
+    sns.barplot(x='аты', y='орташа балл', data=df_sorted, palette='coolwarm', ax=ax)
 
-    sns.barplot(
-        x='аты',
-        y='орташа балл',
-        data=df_sorted,
-        palette='coolwarm',
-        ax=ax
-    )
-
-    plt.xticks(rotation=45, ha='right')
+    plt.xticks(rotation=45)
 
     for i, v in enumerate(df_sorted['орташа балл']):
-        ax.text(i, v + 1, str(round(v,1)), ha='center')
-
-    sns.despine()
-    plt.tight_layout()
+        ax.text(i, v+1, str(round(v,1)), ha='center')
 
     st.pyplot(fig)
