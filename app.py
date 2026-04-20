@@ -1,17 +1,7 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
-
-st.set_page_config(page_title="Мектеп порталы", layout="wide")
 
 # -------------------------------
-# 🔐 LOGIN SYSTEM
+# 🔐 LOGIN SYSTEM (МІНДЕТТІ БАСЫНДА)
 # -------------------------------
 users = {
     "admin": "1234",
@@ -22,6 +12,8 @@ if "login" not in st.session_state:
     st.session_state.login = False
 
 if not st.session_state.login:
+    st.set_page_config(page_title="Кіру", layout="centered")
+
     st.title("🔐 Мектеп порталына кіру")
 
     username = st.text_input("Логин")
@@ -39,10 +31,23 @@ if not st.session_state.login:
     st.stop()
 
 # -------------------------------
-# 📂 SIDEBAR
+# ЕНДІ ҒАНА ҚАЛҒАН КІТАПХАНАЛАР
+# -------------------------------
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+
+st.set_page_config(page_title="Мектеп порталы", layout="wide")
+
+# -------------------------------
+# SIDEBAR
 # -------------------------------
 st.sidebar.title("📚 Меню")
-
 menu = st.sidebar.radio("Бөлім:", [
     "🏠 Dashboard",
     "📊 Аналитика",
@@ -52,17 +57,21 @@ menu = st.sidebar.radio("Бөлім:", [
     "🏆 Рейтинг"
 ])
 
-# -------------------------------
-# 📂 EXCEL ЖҮКТЕУ
-# -------------------------------
-st.sidebar.subheader("📂 Деректер жүктеу")
+# Logout
+if st.sidebar.button("🚪 Шығу"):
+    st.session_state.login = False
+    st.rerun()
 
-uploaded_file = st.sidebar.file_uploader("Excel файл (.xlsx)", type=["xlsx"])
+# -------------------------------
+# EXCEL ЖҮКТЕУ
+# -------------------------------
+st.sidebar.subheader("📂 Деректер")
+
+uploaded_file = st.sidebar.file_uploader("Excel жүктеу", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 else:
-    # Демо дерек
     data = {
         'аты': ['Асан','Айгүл','Нұрсұлтан','Динара','Ержан','Мадина','Самат','Аружан'],
         'математика': [80,50,40,90,65,30,85,55],
@@ -77,16 +86,15 @@ else:
 subjects = ['математика','физика','информатика','қазақ тілі','ағылшын тілі']
 
 # -------------------------------
-# 📊 ЕСЕПТЕУ
+# ЕСЕПТЕУ
 # -------------------------------
 df['орташа балл'] = df[subjects].mean(axis=1)
+
 df['қауіп'] = np.where((df['орташа балл'] < 60) | (df['қатысу'] < 60), 1, 0)
 
 def weak_subject(row):
     low = row[subjects][row[subjects] < 50]
-    if len(low) == 0:
-        return "Жоқ"
-    return low.idxmin()
+    return low.idxmin() if len(low) > 0 else "Жоқ"
 
 df['ең әлсіз пән'] = df.apply(weak_subject, axis=1)
 
@@ -103,7 +111,7 @@ def recommendation(row):
 df['ұсыныс'] = df.apply(recommendation, axis=1)
 
 # -------------------------------
-# 🤖 ML MODEL
+# ML MODEL
 # -------------------------------
 X = df[subjects + ['қатысу']]
 y = df['қауіп']
@@ -112,7 +120,7 @@ model = RandomForestClassifier()
 model.fit(X, y)
 
 # -------------------------------
-# 🏠 DASHBOARD
+# DASHBOARD
 # -------------------------------
 if menu == "🏠 Dashboard":
     st.title("📊 Жалпы көрсеткіш")
@@ -125,7 +133,7 @@ if menu == "🏠 Dashboard":
     st.dataframe(df)
 
 # -------------------------------
-# 📊 АНАЛИТИКА
+# АНАЛИТИКА
 # -------------------------------
 elif menu == "📊 Аналитика":
     st.title("📈 Аналитика")
@@ -143,7 +151,7 @@ elif menu == "📊 Аналитика":
     st.pyplot(fig)
 
 # -------------------------------
-# 🧠 БОЛЖАУ
+# БОЛЖАУ
 # -------------------------------
 elif menu == "🧠 Болжау":
     st.title("🧠 Болжау")
@@ -157,31 +165,27 @@ elif menu == "🧠 Болжау":
 
     if st.button("Болжау"):
         pred = model.predict([[math, physics, info, kaz, eng, att]])
-        if pred[0] == 1:
-            st.error("⚠️ Қауіпті")
-        else:
-            st.success("✅ Жақсы")
+        st.success("✅ Қауіпсіз" if pred[0] == 0 else "⚠️ Қауіпті")
 
 # -------------------------------
-# 👤 ПРОФИЛЬ
+# ПРОФИЛЬ
 # -------------------------------
 elif menu == "👤 Оқушы профилі":
     st.title("👤 Оқушы профилі")
 
-    student = st.selectbox("Оқушы таңдаңыз", df['аты'])
+    student = st.selectbox("Оқушы", df['аты'])
     st.dataframe(df[df['аты'] == student])
 
 # -------------------------------
-# 📞 АТА-АНА
+# АТА-АНА
 # -------------------------------
 elif menu == "📞 Ата-ана":
     st.title("📞 Ата-анамен жұмыс")
 
-    parents = df[df['ұсыныс'].str.contains("Ата-ана")]
-    st.dataframe(parents[['аты','ұсыныс']])
+    st.dataframe(df[df['ұсыныс'].str.contains("Ата-ана")])
 
 # -------------------------------
-# 🏆 РЕЙТИНГ
+# РЕЙТИНГ
 # -------------------------------
 elif menu == "🏆 Рейтинг":
     st.title("🏆 Рейтинг")
