@@ -137,10 +137,124 @@ if menu == "🏠 Dashboard":
 # -------------------------------
 elif menu == "📊 Аналитика":
 
-    fig, ax = plt.subplots()
-    sns.barplot(x='аты', y='орташа балл', data=df, ax=ax)
+    st.title("📊 Толық аналитика панелі")
+
+    # -------------------------------
+    # 📊 KPI
+    # -------------------------------
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("📈 Орташа балл", round(df['орташа балл'].mean(),2))
+    col2.metric("⚠️ Қауіпті оқушылар", df['қауіп'].sum())
+    col3.metric("🏆 Үздік оқушылар", len(df[df['орташа балл']>80]))
+
+    st.divider()
+
+    # -------------------------------
+    # 📊 1. Орташа балл (Bar Chart)
+    # -------------------------------
+    col1, col2 = st.columns(2)
+
+    fig1, ax1 = plt.subplots(figsize=(6,4))
+    sns.barplot(x='аты', y='орташа балл', data=df, palette='viridis', ax=ax1)
+    ax1.set_title("Орташа балл")
     plt.xticks(rotation=45)
-    st.pyplot(fig)
+    col1.pyplot(fig1)
+
+    # -------------------------------
+    # 📊 2. Қатысу vs Балл
+    # -------------------------------
+    fig2, ax2 = plt.subplots(figsize=(6,4))
+    sns.scatterplot(x='қатысу', y='орташа балл', hue='қауіп', data=df, ax=ax2)
+    ax2.set_title("Қатысу vs Балл")
+    col2.pyplot(fig2)
+
+    st.divider()
+
+    # -------------------------------
+    # 📉 3. Балл таралуы (Histogram)
+    # -------------------------------
+    col1, col2 = st.columns(2)
+
+    fig3, ax3 = plt.subplots()
+    sns.histplot(df['орташа балл'], bins=5, kde=True, ax=ax3)
+    ax3.set_title("Балл таралуы")
+    col1.pyplot(fig3)
+
+    # -------------------------------
+    # 📊 4. Boxplot (пәндер)
+    # -------------------------------
+    fig4, ax4 = plt.subplots()
+    sns.boxplot(data=df[subjects], ax=ax4)
+    ax4.set_title("Пәндер таралуы")
+    col2.pyplot(fig4)
+
+    st.divider()
+
+    # -------------------------------
+    # 📊 5. Әлсіз пәндер
+    # -------------------------------
+    col1, col2 = st.columns(2)
+
+    weak_counts = df['ең әлсіз пән'].value_counts()
+
+    fig5, ax5 = plt.subplots()
+    weak_counts.plot(kind='bar', ax=ax5)
+    ax5.set_title("Ең әлсіз пәндер")
+    col1.pyplot(fig5)
+
+    # -------------------------------
+    # 📊 6. Корреляция
+    # -------------------------------
+    fig6, ax6 = plt.subplots()
+    sns.heatmap(df[subjects].corr(), annot=True, cmap='coolwarm', ax=ax6)
+    ax6.set_title("Пәндер байланысы")
+    col2.pyplot(fig6)
+
+    st.divider()
+
+    # -------------------------------
+    # 🏆 7. ТОП / Әлсіз
+    # -------------------------------
+    col1, col2 = st.columns(2)
+
+    top = df.nlargest(3, 'орташа балл')
+    weak = df.nsmallest(3, 'орташа балл')
+
+    col1.write("🏆 ТОП 3 оқушы")
+    col1.dataframe(top[['аты','орташа балл']])
+
+    col2.write("⚠️ Әлсіз 3 оқушы")
+    col2.dataframe(weak[['аты','орташа балл']])
+
+    st.divider()
+
+    # -------------------------------
+    # 📈 8. Прогресс
+    # -------------------------------
+    fig7, ax7 = plt.subplots()
+    ax7.plot(df['аты'], df['орташа балл'], label="Қазір")
+    ax7.plot(df['аты'], df['өткен'], label="Өткен")
+    plt.xticks(rotation=45)
+    plt.legend()
+    ax7.set_title("Прогресс")
+    st.pyplot(fig7)
+
+    st.divider()
+
+    # -------------------------------
+    # 🧠 9. AI қорытынды
+    # -------------------------------
+    st.subheader("🧠 Аналитикалық қорытынды")
+
+    avg = df['орташа балл'].mean()
+    weak_sub = df['ең әлсіз пән'].value_counts().idxmax()
+
+    st.info(f"""
+📊 Сыныптың орташа баллы: {round(avg,2)}  
+⚠️ Ең әлсіз пән: {weak_sub}  
+📈 Жалпы деңгей: {"Жоғары" if avg>70 else "Орташа" if avg>50 else "Төмен"}
+""")
 
 # -------------------------------
 # PREDICTION
@@ -228,9 +342,89 @@ elif menu == "🧾 PDF":
 # RATING
 # -------------------------------
 elif menu == "🏆 Рейтинг":
-    d = df.sort_values(by='орташа балл', ascending=False)
 
-    fig, ax = plt.subplots()
-    sns.barplot(x='аты', y='орташа балл', data=d, ax=ax)
+    st.title("🏆 Оқушылар рейтингі")
+
+    # -------------------------------
+    # 📊 СОРТТАУ
+    # -------------------------------
+    df_sorted = df.sort_values(by='орташа балл', ascending=False).reset_index(drop=True)
+
+    # Рейтинг номер қосу
+    df_sorted['Рейтинг'] = df_sorted.index + 1
+
+    # -------------------------------
+    # 🥇 ТОП 3 CARD
+    # -------------------------------
+    st.subheader("🥇 ТОП 3 оқушы")
+
+    top3 = df_sorted.head(3)
+    col1, col2, col3 = st.columns(3)
+
+    medals = ["🥇", "🥈", "🥉"]
+
+    for i, col in enumerate([col1, col2, col3]):
+        with col:
+            st.markdown(f"### {medals[i]} {top3.iloc[i]['аты']}")
+            st.success(f"Балл: {round(top3.iloc[i]['орташа балл'],2)}")
+
+    st.divider()
+
+    # -------------------------------
+    # 📋 ТОЛЫҚ РЕЙТИНГ КЕСТЕ
+    # -------------------------------
+    st.subheader("📋 Толық рейтинг")
+
+    st.dataframe(df_sorted[['Рейтинг','аты','орташа балл']])
+
+    st.divider()
+
+    # -------------------------------
+    # 📊 ГРАФИК (әдемі)
+    # -------------------------------
+    fig, ax = plt.subplots(figsize=(12,6))
+
+    colors = ['green' if x>80 else 'orange' if x>60 else 'red' for x in df_sorted['орташа балл']]
+
+    ax.bar(df_sorted['аты'], df_sorted['орташа балл'], color=colors)
+
+    ax.set_title("Оқушылар рейтингі")
     plt.xticks(rotation=45)
+
+    # мән жазу
+    for i, v in enumerate(df_sorted['орташа балл']):
+        ax.text(i, v + 1, str(round(v,1)), ha='center')
+
     st.pyplot(fig)
+
+    st.divider()
+
+    # -------------------------------
+    # 🎯 ДЕҢГЕЙГЕ БӨЛУ
+    # -------------------------------
+    st.subheader("🎯 Оқушылар деңгейі")
+
+    def level(score):
+        if score >= 80:
+            return "🟢 Үздік"
+        elif score >= 60:
+            return "🟡 Орташа"
+        else:
+            return "🔴 Қауіпті"
+
+    df_sorted['Деңгей'] = df_sorted['орташа балл'].apply(level)
+
+    st.dataframe(df_sorted[['аты','орташа балл','Деңгей']])
+
+    st.divider()
+
+    # -------------------------------
+    # 📊 PIE CHART
+    # -------------------------------
+    level_counts = df_sorted['Деңгей'].value_counts()
+
+    fig2, ax2 = plt.subplots()
+    ax2.pie(level_counts, labels=level_counts.index, autopct='%1.1f%%')
+    ax2.set_title("Деңгей бойынша бөлу")
+
+    st.pyplot(fig2)
