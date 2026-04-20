@@ -9,18 +9,11 @@ from sklearn.ensemble import RandomForestClassifier
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
-from reportlab.pdfbase import pdfmetrics
-
 
 # -------------------------------
 # CONFIG
 # -------------------------------
 st.set_page_config(page_title="Smart School Portal", layout="wide")
-
-# -------------------------------
-# FONT (қазақша үшін)
-# -------------------------------
-# pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
 # -------------------------------
 # LOGIN
@@ -32,6 +25,7 @@ if "login" not in st.session_state:
 
 if not st.session_state.login:
     st.title("🔐 Жүйеге кіру")
+
     u = st.text_input("Логин")
     p = st.text_input("Құпия сөз", type="password")
 
@@ -64,7 +58,7 @@ menu = st.sidebar.radio("Бөлім:", [
 ])
 
 # -------------------------------
-# DATA LOAD
+# DATA
 # -------------------------------
 uploaded = st.sidebar.file_uploader("Excel жүктеу", type=["xlsx"])
 
@@ -105,25 +99,16 @@ df['ең әлсіз пән'] = df.apply(weak, axis=1)
 # AI
 def ai(row):
     if row['орташа балл'] < 50:
-        return f"{row['аты']} әлсіз. {row['ең әлсіз пән']} қиын."
+        return f"{row['аты']} әлсіз. {row['ең әлсіз пән']} пәні қиын."
     elif row['орташа балл'] < 70:
-        return f"{row['аты']} орташа. {row['ең әлсіз пән']} жақсарту керек."
+        return f"{row['аты']} орташа деңгейде."
     else:
         return f"{row['аты']} жақсы оқиды."
 
 df['AI'] = df.apply(ai, axis=1)
 
-# TASK
-def tasks(row):
-    sub = row['ең әлсіз пән']
-    if sub == "Жоқ":
-        return "Қажет емес"
-    return f"{sub}: қосымша тапсырма"
-
-df['тапсырма'] = df.apply(tasks, axis=1)
-
-df['өткен'] = df['орташа балл'] - np.random.randint(0,10,len(df))
 df['хабар'] = df['аты'] + " - " + df['AI']
+df['өткен'] = df['орташа балл'] - np.random.randint(0,10,len(df))
 
 # ML
 X = df[subjects+['қатысу']]
@@ -143,7 +128,7 @@ if menu == "🏠 Dashboard":
     st.dataframe(df)
 
 # -------------------------------
-# ANALYTICS (FULL)
+# ANALYTICS
 # -------------------------------
 elif menu == "📊 Аналитика":
 
@@ -155,19 +140,8 @@ elif menu == "📊 Аналитика":
     col1.pyplot(fig1)
 
     fig2, ax2 = plt.subplots()
-    sns.scatterplot(x='қатысу', y='орташа балл', data=df, hue='қауіп', ax=ax2)
+    sns.scatterplot(x='қатысу', y='орташа балл', hue='қауіп', data=df, ax=ax2)
     col2.pyplot(fig2)
-
-    fig3, ax3 = plt.subplots()
-    sns.heatmap(df[subjects].corr(), annot=True, ax=ax3)
-    st.pyplot(fig3)
-
-    fig4, ax4 = plt.subplots()
-    ax4.plot(df['аты'], df['орташа балл'], label="қазір")
-    ax4.plot(df['аты'], df['өткен'], label="өткен")
-    plt.xticks(rotation=45)
-    plt.legend()
-    st.pyplot(fig4)
 
 # -------------------------------
 # PREDICTION
@@ -195,14 +169,16 @@ elif menu == "📲 Хабар":
     st.info(df[df['аты']==s]['хабар'].values[0])
 
 # -------------------------------
-# PDF
+# PDF (SAFE VERSION)
 # -------------------------------
 elif menu == "🧾 PDF":
-    s = st.selectbox("Оқушы", df['аты'])
-    row = df[df['аты']==s].iloc[0]
+
+    student = st.selectbox("Оқушы таңда", df['аты'])
+    row = df[df['аты']==student].iloc[0]
 
     if st.button("PDF жасау"):
 
+        # график
         plt.figure()
         scores = [row[s] for s in subjects]
         plt.bar(subjects, scores)
@@ -213,23 +189,25 @@ elif menu == "🧾 PDF":
         doc = SimpleDocTemplate("report.pdf", pagesize=letter)
         styles = getSampleStyleSheet()
 
-        # font fix
-        for style in styles.byName.values():
-            style.fontName = 'DejaVu'
-
         content = []
-        content.append(Paragraph("Оқушы есебі", styles["Title"]))
+
+        content.append(Paragraph("Student Report", styles["Title"]))
         content.append(Spacer(1,10))
-        content.append(Paragraph(f"Аты: {row['аты']}", styles["Normal"]))
-        content.append(Paragraph(f"Орташа: {row['орташа балл']}", styles["Normal"]))
-        content.append(Paragraph(f"Ұсыныс: {row['AI']}", styles["Normal"]))
+        content.append(Paragraph(f"Name: {row['аты']}", styles["Normal"]))
+        content.append(Paragraph(f"Average: {round(row['орташа балл'],2)}", styles["Normal"]))
+        content.append(Paragraph(f"Advice: {row['AI']}", styles["Normal"]))
         content.append(Spacer(1,20))
         content.append(Image("chart.png", width=400, height=250))
 
         doc.build(content)
 
         with open("report.pdf","rb") as f:
-            st.download_button("Жүктеу", f, file_name="report.pdf", mime="application/pdf")
+            st.download_button(
+                "Жүктеу",
+                f,
+                file_name=f"{row['аты']}_report.pdf",
+                mime="application/pdf"
+            )
 
 # -------------------------------
 # RATING
