@@ -6,24 +6,20 @@ import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 
 # -------------------------------
-# CONFIG (ең басында 1 рет)
+# CONFIG
 # -------------------------------
 st.set_page_config(page_title="Smart School Portal", layout="wide")
 
 # -------------------------------
 # LOGIN SYSTEM
 # -------------------------------
-users = {
-    "admin": "1234",
-    "teacher": "1111"
-}
+users = {"admin": "1234", "teacher": "1111"}
 
 if "login" not in st.session_state:
     st.session_state.login = False
 
 def login_page():
     st.title("🔐 Жүйеге кіру")
-
     username = st.text_input("Логин")
     password = st.text_input("Құпия сөз", type="password")
 
@@ -31,32 +27,28 @@ def login_page():
         if username in users and users[username] == password:
             st.session_state.login = True
             st.session_state.user = username
-            st.success("Сәтті кірдіңіз!")
             st.rerun()
         else:
             st.error("Қате логин немесе пароль")
 
-# Егер кірмеген болса — тек login көрсетіледі
 if not st.session_state.login:
     login_page()
     st.stop()
 
-# -------------------------------
-# LOGOUT
-# -------------------------------
+# Logout
 if st.sidebar.button("🚪 Шығу"):
     st.session_state.login = False
     st.rerun()
 
 # -------------------------------
-# SIDEBAR MENU
+# SIDEBAR
 # -------------------------------
 st.sidebar.title("📚 Меню")
-menu = st.sidebar.radio("Бөлім таңдаңыз:", [
+menu = st.sidebar.radio("Бөлім:", [
     "🏠 Журнал",
     "📊 Аналитика",
     "🧠 Болжау",
-    "👤 Оқушы профилі",
+    "👤 Профиль",
     "📞 Ата-ана",
     "🏆 Рейтинг"
 ])
@@ -64,13 +56,21 @@ menu = st.sidebar.radio("Бөлім таңдаңыз:", [
 # -------------------------------
 # DATA LOAD
 # -------------------------------
-st.sidebar.subheader("📂 Деректер")
+st.sidebar.subheader("📂 Excel")
 
 uploaded_file = st.sidebar.file_uploader("Excel жүктеу", type=["xlsx"])
 
 def load_data():
     if uploaded_file:
-        return pd.read_excel(uploaded_file)
+        df = pd.read_excel(uploaded_file)
+
+        required = ['аты','математика','физика','информатика','қазақ тілі','ағылшын тілі','қатысу']
+        if not all(col in df.columns for col in required):
+            st.error("❌ Excel формат дұрыс емес!")
+            st.write("Керек бағандар:", required)
+            st.stop()
+
+        return df
     else:
         return pd.DataFrame({
             'аты': ['Асан','Айгүл','Нұрсұлтан','Динара','Ержан','Мадина','Самат','Аружан'],
@@ -98,17 +98,25 @@ def weak_subject(row):
 
 df['ең әлсіз пән'] = df.apply(weak_subject, axis=1)
 
-def recommendation(row):
-    if row['орташа балл'] < 60 and row['қатысу'] < 60:
-        return f"Ата-анамен кездесу ({row['ең әлсіз пән']})"
-    elif row['орташа балл'] < 60:
-        return f"Қосымша сабақ ({row['ең әлсіз пән']})"
-    elif row['қатысу'] < 60:
-        return "Ата-анамен байланыс"
-    else:
-        return "Жақсы"
+# -------------------------------
+# 🤖 AI RECOMMENDATION
+# -------------------------------
+def ai_recommendation(row):
+    weak = row['ең әлсіз пән']
 
-df['ұсыныс'] = df.apply(recommendation, axis=1)
+    if weak == "Жоқ":
+        return "🏆 Барлық пән жақсы"
+
+    score = row[weak]
+
+    if score < 40:
+        return f"⚠️ {weak}: өте төмен — ата-анамен жұмыс + жеке сабақ"
+    elif score < 60:
+        return f"📘 {weak}: қосымша тапсырма қажет"
+    else:
+        return f"👍 {weak}: қайталау жеткілікті"
+
+df['ұсыныс'] = df.apply(ai_recommendation, axis=1)
 
 # -------------------------------
 # ML MODEL
@@ -120,34 +128,31 @@ model = RandomForestClassifier()
 model.fit(X, y)
 
 # -------------------------------
-# DASHBOARD
+# ЖУРНАЛ
 # -------------------------------
 if menu == "🏠 Журнал":
     st.title("📊 Журнал")
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Орташа балл", round(df['орташа балл'].mean(),2))
-    col2.metric("Қауіпті %", f"{round(df['қауіп'].mean()*100,1)}%")
-    col3.metric("Оқушы саны", len(df))
-
     st.dataframe(df)
 
 # -------------------------------
-# ANALYTICS
+# АНАЛИТИКА
 # -------------------------------
 elif menu == "📊 Аналитика":
     st.title("📈 Аналитика")
 
     sns.set_style("whitegrid")
-
     fig, ax = plt.subplots(figsize=(12,6))
-    sns.barplot(x='аты', y='орташа балл', data=df, palette='viridis', ax=ax)
 
+    sns.barplot(x='аты', y='орташа балл', data=df, palette='viridis', ax=ax)
     plt.xticks(rotation=45)
+
+    for i, v in enumerate(df['орташа балл']):
+        ax.text(i, v+1, str(round(v,1)), ha='center')
+
     st.pyplot(fig)
 
 # -------------------------------
-# PREDICTION
+# БОЛЖАУ
 # -------------------------------
 elif menu == "🧠 Болжау":
     st.title("🧠 Болжау")
@@ -161,27 +166,27 @@ elif menu == "🧠 Болжау":
 
     if st.button("Болжау"):
         pred = model.predict([[math, physics, info, kaz, eng, att]])
-        st.success("Қауіпсіз" if pred[0] == 0 else "Қауіпті")
+        st.success("✅ Қауіпсіз" if pred[0] == 0 else "⚠️ Қауіпті")
 
 # -------------------------------
-# PROFILE
+# ПРОФИЛЬ
 # -------------------------------
-elif menu == "👤 Оқушы профилі":
+elif menu == "👤 Профиль":
     st.title("👤 Оқушы профилі")
 
     student = st.selectbox("Оқушы таңдаңыз", df['аты'])
     st.dataframe(df[df['аты'] == student])
 
 # -------------------------------
-# PARENTS
+# АТА-АНА
 # -------------------------------
 elif menu == "📞 Ата-ана":
-    st.title("📞 Ата-анамен жұмыс")
+    st.title("📞 Ұсыныстар")
 
-    st.dataframe(df[df['ұсыныс'].str.contains("Ата-ана")])
+    st.dataframe(df[['аты','ең әлсіз пән','ұсыныс']])
 
 # -------------------------------
-# RATING
+# РЕЙТИНГ
 # -------------------------------
 elif menu == "🏆 Рейтинг":
     st.title("🏆 Рейтинг")
@@ -192,4 +197,8 @@ elif menu == "🏆 Рейтинг":
     sns.barplot(x='аты', y='орташа балл', data=df_sorted, palette='coolwarm', ax=ax)
 
     plt.xticks(rotation=45)
+
+    for i, v in enumerate(df_sorted['орташа балл']):
+        ax.text(i, v+1, str(round(v,1)), ha='center')
+
     st.pyplot(fig)
