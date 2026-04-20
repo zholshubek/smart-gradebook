@@ -20,7 +20,7 @@ st.set_page_config(page_title="Smart School Portal", layout="wide")
 # -------------------------------
 # FONT (қазақша үшін)
 # -------------------------------
-pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
+# pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
 # -------------------------------
 # LOGIN
