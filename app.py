@@ -53,7 +53,7 @@ if st.sidebar.button("🚪 Шығу"):
 # -------------------------------
 st.sidebar.title("📚 Меню")
 menu = st.sidebar.radio("Бөлім таңдаңыз:", [
-    "🏠 Dashboard",
+    "🏠 Журнал",
     "📊 Аналитика",
     "🧠 Болжау",
     "👤 Оқушы профилі",
@@ -122,8 +122,8 @@ model.fit(X, y)
 # -------------------------------
 # DASHBOARD
 # -------------------------------
-if menu == "🏠 Dashboard":
-    st.title("📊 Dashboard")
+if menu == "🏠 Журнал":
+    st.title("📊 Журнал")
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Орташа балл", round(df['орташа балл'].mean(),2))
