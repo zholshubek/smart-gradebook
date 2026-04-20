@@ -321,9 +321,89 @@ elif menu == "🧾 PDF":
 # RATING
 # -------------------------------
 elif menu == "🏆 Рейтинг":
-    d = df.sort_values(by='орташа балл', ascending=False)
 
-    fig, ax = plt.subplots()
-    sns.barplot(x='аты', y='орташа балл', data=d, ax=ax)
+    st.title("🏆 Оқушылар рейтингі")
+
+    # -------------------------------
+    # 📊 СОРТТАУ
+    # -------------------------------
+    df_sorted = df.sort_values(by='орташа балл', ascending=False).reset_index(drop=True)
+
+    # Рейтинг номер қосу
+    df_sorted['Рейтинг'] = df_sorted.index + 1
+
+    # -------------------------------
+    # 🥇 ТОП 3 CARD
+    # -------------------------------
+    st.subheader("🥇 ТОП 3 оқушы")
+
+    top3 = df_sorted.head(3)
+    col1, col2, col3 = st.columns(3)
+
+    medals = ["🥇", "🥈", "🥉"]
+
+    for i, col in enumerate([col1, col2, col3]):
+        with col:
+            st.markdown(f"### {medals[i]} {top3.iloc[i]['аты']}")
+            st.success(f"Балл: {round(top3.iloc[i]['орташа балл'],2)}")
+
+    st.divider()
+
+    # -------------------------------
+    # 📋 ТОЛЫҚ РЕЙТИНГ КЕСТЕ
+    # -------------------------------
+    st.subheader("📋 Толық рейтинг")
+
+    st.dataframe(df_sorted[['Рейтинг','аты','орташа балл']])
+
+    st.divider()
+
+    # -------------------------------
+    # 📊 ГРАФИК (әдемі)
+    # -------------------------------
+    fig, ax = plt.subplots(figsize=(12,6))
+
+    colors = ['green' if x>80 else 'orange' if x>60 else 'red' for x in df_sorted['орташа балл']]
+
+    ax.bar(df_sorted['аты'], df_sorted['орташа балл'], color=colors)
+
+    ax.set_title("Оқушылар рейтингі")
     plt.xticks(rotation=45)
+
+    # мән жазу
+    for i, v in enumerate(df_sorted['орташа балл']):
+        ax.text(i, v + 1, str(round(v,1)), ha='center')
+
     st.pyplot(fig)
+
+    st.divider()
+
+    # -------------------------------
+    # 🎯 ДЕҢГЕЙГЕ БӨЛУ
+    # -------------------------------
+    st.subheader("🎯 Оқушылар деңгейі")
+
+    def level(score):
+        if score >= 80:
+            return "🟢 Үздік"
+        elif score >= 60:
+            return "🟡 Орташа"
+        else:
+            return "🔴 Қауіпті"
+
+    df_sorted['Деңгей'] = df_sorted['орташа балл'].apply(level)
+
+    st.dataframe(df_sorted[['аты','орташа балл','Деңгей']])
+
+    st.divider()
+
+    # -------------------------------
+    # 📊 PIE CHART
+    # -------------------------------
+    level_counts = df_sorted['Деңгей'].value_counts()
+
+    fig2, ax2 = plt.subplots()
+    ax2.pie(level_counts, labels=level_counts.index, autopct='%1.1f%%')
+    ax2.set_title("Деңгей бойынша бөлу")
+
+    st.pyplot(fig2)
