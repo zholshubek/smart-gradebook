@@ -14,6 +14,7 @@ pdfmetrics.registerFont(TTFont('DejaVu', './DejaVuSans.ttf'))
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
 
 # -------------------------------
 # CONFIG
