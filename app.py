@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import base64
 from sklearn.ensemble import RandomForestClassifier
 
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
@@ -214,8 +215,6 @@ elif menu == "Хабар":
 # -------------------------------
 # PDF
 # -------------------------------
-import base64
-
 elif menu == "PDF":
 
     st.title("🧾 PDF есеп (Preview)")
@@ -225,7 +224,6 @@ elif menu == "PDF":
 
     if st.button("📄 PDF жасау"):
 
-        # 📊 график
         plt.figure()
         scores = [row[s] for s in subjects]
         plt.bar(subjects, scores)
@@ -234,7 +232,6 @@ elif menu == "PDF":
         plt.savefig("chart.png")
         plt.close()
 
-        # 📄 PDF жасау
         doc = SimpleDocTemplate("report.pdf")
         styles = getSampleStyleSheet()
 
@@ -246,9 +243,6 @@ elif menu == "PDF":
 
         doc.build(content)
 
-        # -------------------------------
-        # 📥 ЖҮКТЕУ
-        # -------------------------------
         with open("report.pdf", "rb") as f:
             pdf_bytes = f.read()
 
@@ -259,23 +253,16 @@ elif menu == "PDF":
             mime="application/pdf"
         )
 
-        # -------------------------------
-        # 🌐 PREVIEW (браузерде көрсету)
-        # -------------------------------
+        # PDF preview
         base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
 
-        pdf_display = f'''
-        <iframe 
-            src="data:application/pdf;base64,{base64_pdf}" 
-            width="100%" 
-            height="600" 
-            type="application/pdf">
-        </iframe>
-        '''
+        pdf_display = f"""
+        <iframe src="data:application/pdf;base64,{base64_pdf}" 
+        width="100%" height="600"></iframe>
+        """
 
         st.markdown("### 📄 PDF алдын ала көру")
         st.markdown(pdf_display, unsafe_allow_html=True)
-
 # -------------------------------
 # RATING
 # -------------------------------
