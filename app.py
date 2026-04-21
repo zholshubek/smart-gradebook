@@ -83,7 +83,7 @@ menu = st.sidebar.radio("Бөлім:", [
     "Рейтинг"
 ])
 
-st.write("Қазіргі таңдалған бөлім:", menu)  # debug
+st.markdown(f"### 📍 Қазіргі бөлім: {menu}")  # debug
 
 # -------------------------------
 # DATA
