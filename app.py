@@ -74,7 +74,7 @@ if st.sidebar.button("🚪 Шығу"):
 # MENU (FIXED)
 # -------------------------------
 menu = st.sidebar.radio("Бөлім:", [
-    "Dashboard",
+    "Журнал",
     "Аналитика",
     "Болжау",
     "Профиль",
@@ -132,11 +132,11 @@ model = RandomForestClassifier()
 model.fit(X,y)
 
 # -------------------------------
-# DASHBOARD
+# Журнал
 # -------------------------------
-if menu == "Dashboard":
+if menu == "Журнал":
 
-    st.title("📊 Dashboard")
+    st.title("📊 Журнал")
 
     # -------------------------------
     # 🔍 ФИЛЬТР
@@ -185,19 +185,124 @@ if menu == "Dashboard":
 # -------------------------------
 elif menu == "Аналитика":
 
-    st.title("📊 Аналитика")
+    st.title("📊 Аналитика панелі")
 
-    fig, ax = plt.subplots()
-    sns.barplot(x='аты', y='орташа балл', data=df, ax=ax)
+    # -------------------------------
+    # 📊 KPI
+    # -------------------------------
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("📈 Орташа балл", round(df['орташа балл'].mean(),2))
+    col2.metric("⚠️ Қауіпті", df['қауіп'].sum())
+    col3.metric("🏆 Үздік", len(df[df['орташа балл'] > 80]))
+    col4.metric("📉 Әлсіз пән", df['ең әлсіз пән'].value_counts().idxmax())
+
+    st.divider()
+
+    # -------------------------------
+    # 🔍 ФИЛЬТР
+    # -------------------------------
+    selected = st.selectbox("👤 Оқушы таңда", ["Барлығы"] + list(df['аты']))
+
+    if selected != "Барлығы":
+        data = df[df['аты'] == selected]
+    else:
+        data = df
+
+    # -------------------------------
+    # 📊 1. BAR CHART
+    # -------------------------------
+    st.subheader("📊 Орташа балл")
+
+    fig1, ax1 = plt.subplots(figsize=(10,4))
+    sns.barplot(x='аты', y='орташа балл', data=data, ax=ax1)
+
     plt.xticks(rotation=45)
-    st.pyplot(fig)
 
-    fig2, ax2 = plt.subplots()
-    ax2.plot(df['аты'], df['орташа балл'], label="Қазір")
-    ax2.plot(df['аты'], df['өткен'], label="Өткен")
+    for i, v in enumerate(data['орташа балл']):
+        ax1.text(i, v+1, str(round(v,1)), ha='center')
+
+    st.pyplot(fig1)
+
+    st.divider()
+
+    # -------------------------------
+    # 📈 2. ПРОГРЕСС
+    # -------------------------------
+    st.subheader("📈 Прогресс")
+
+    fig2, ax2 = plt.subplots(figsize=(10,4))
+    ax2.plot(data['аты'], data['орташа балл'], label="Қазір", marker='o')
+    ax2.plot(data['аты'], data['өткен'], label="Өткен", marker='o')
+
     plt.legend()
     plt.xticks(rotation=45)
+
     st.pyplot(fig2)
+
+    st.divider()
+
+    # -------------------------------
+    # 📉 3. HISTOGRAM
+    # -------------------------------
+    st.subheader("📉 Балл таралуы")
+
+    fig3, ax3 = plt.subplots()
+    sns.histplot(df['орташа балл'], bins=5, kde=True, ax=ax3)
+
+    st.pyplot(fig3)
+
+    st.divider()
+
+    # -------------------------------
+    # 📊 4. CORRELATION HEATMAP
+    # -------------------------------
+    st.subheader("📊 Пәндер байланысы")
+
+    fig4, ax4 = plt.subplots()
+    sns.heatmap(df[subjects].corr(), annot=True, cmap='coolwarm', ax=ax4)
+
+    st.pyplot(fig4)
+
+    st.divider()
+
+    # -------------------------------
+    # 📊 5. PIE CHART
+    # -------------------------------
+    st.subheader("🎯 Деңгей бойынша")
+
+    def level(x):
+        if x >= 80:
+            return "Үздік"
+        elif x >= 60:
+            return "Орташа"
+        else:
+            return "Қауіпті"
+
+    df['деңгей'] = df['орташа балл'].apply(level)
+
+    level_counts = df['деңгей'].value_counts()
+
+    fig5, ax5 = plt.subplots()
+    ax5.pie(level_counts, labels=level_counts.index, autopct='%1.1f%%')
+
+    st.pyplot(fig5)
+
+    st.divider()
+
+    # -------------------------------
+    # 🏆 6. ТОП / ӘЛСІЗ
+    # -------------------------------
+    col1, col2 = st.columns(2)
+
+    top = df.nlargest(3, 'орташа балл')
+    weak = df.nsmallest(3, 'орташа балл')
+
+    col1.subheader("🏆 ТОП 3")
+    col1.dataframe(top[['аты','орташа балл']])
+
+    col2.subheader("⚠️ Әлсіз 3")
+    col2.dataframe(weak[['аты','орташа балл']])
 
 # -------------------------------
 # PREDICTION
