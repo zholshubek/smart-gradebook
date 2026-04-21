@@ -6,12 +6,14 @@ import seaborn as sns
 import base64
 import streamlit.components.v1 as components
 
+
 from sklearn.ensemble import RandomForestClassifier
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 pdfmetrics.registerFont(TTFont('DejaVu', './DejaVuSans.ttf'))
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
