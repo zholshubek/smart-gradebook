@@ -229,31 +229,25 @@ elif menu == "Хабар":
 
 elif menu == "PDF":
 
-    st.title("🧾 PDF есеп (Advanced)")
+    st.title("🧾 PDF есеп (FINAL DESIGN)")
 
     student = st.selectbox("Оқушы таңда", df['аты'])
     row = df[df['аты']==student].iloc[0]
 
     if st.button("📄 PDF жасау"):
 
-        # -------------------------------
-        # 📊 ГРАФИК 1
-        # -------------------------------
+        # 📊 график
         chart1 = "chart1.png"
-        scores = [row[s] for s in subjects]
-
         plt.figure(figsize=(6,4))
+        scores = [row[s] for s in subjects]
         plt.bar(subjects, scores, color='#4CAF50')
         plt.xticks(rotation=45)
         plt.tight_layout()
         plt.savefig(chart1)
         plt.close()
 
-        # -------------------------------
-        # 📈 ПРОГРЕСС
-        # -------------------------------
+        # 📈 прогресс
         chart2 = "chart2.png"
-
         plt.figure(figsize=(6,4))
         plt.plot(["Өткен","Қазір"], [row['өткен'], row['орташа балл']], marker='o')
         plt.grid()
@@ -261,9 +255,7 @@ elif menu == "PDF":
         plt.savefig(chart2)
         plt.close()
 
-        # -------------------------------
-        # 📄 PDF
-        # -------------------------------
+        # PDF
         doc = SimpleDocTemplate("report.pdf")
         styles = getSampleStyleSheet()
 
@@ -272,25 +264,28 @@ elif menu == "PDF":
             fontName='DejaVu',
             fontSize=18,
             textColor=colors.darkblue,
-            alignment=1
+            alignment=1,
+            spaceAfter=10
         )
 
         header = ParagraphStyle(
             'header',
             fontName='DejaVu',
-            fontSize=14
+            fontSize=14,
+            spaceAfter=6
         )
 
         normal = ParagraphStyle(
             'normal',
             fontName='DejaVu',
-            fontSize=11
+            fontSize=11,
+            leading=14
         )
 
         content = []
 
         # HEADER
-        content.append(Paragraph("🏫 SMART SCHOOL SYSTEM", title))
+        content.append(Paragraph("SMART SCHOOL SYSTEM", title))
         content.append(Paragraph("ОҚУШЫ ЕСЕБІ", title))
         content.append(Spacer(1,15))
 
@@ -299,16 +294,14 @@ elif menu == "PDF":
         content.append(Paragraph(f"Орташа балл: {round(row['орташа балл'],2)}", normal))
         content.append(Spacer(1,10))
 
-        # -------------------------------
-        # 📊 KPI (ДҰРЫС ОРЫНДА!)
-        # -------------------------------
-        avg_score = round(df['орташа балл'].mean(), 2)
-        danger_count = df['қауіп'].sum()
+        # KPI
+        avg = round(df['орташа балл'].mean(),2)
+        danger = df['қауіп'].sum()
 
         kpi_data = [
-            ["Көрсеткіш", "Мәні"],
-            ["Орташа балл", str(avg_score)],
-            ["Қауіпті", str(danger_count)]
+            ["Көрсеткіш","Мәні"],
+            ["Орташа", str(avg)],
+            ["Қауіпті", str(danger)]
         ]
 
         kpi_table = Table(kpi_data)
@@ -318,12 +311,12 @@ elif menu == "PDF":
             ('GRID',(0,0),(-1,-1),1,colors.black)
         ]))
 
-        content.append(Paragraph("📊 KPI", header))
+        content.append(Paragraph("KPI", header))
         content.append(kpi_table)
         content.append(Spacer(1,15))
 
         # AI
-        content.append(Paragraph("🧠 Ұсыныс", header))
+        content.append(Paragraph("Ұсыныс", header))
         content.append(Paragraph(row['AI'], normal))
         content.append(Spacer(1,15))
 
@@ -339,42 +332,26 @@ elif menu == "PDF":
             ('GRID',(0,0),(-1,-1),1,colors.black)
         ]))
 
-        content.append(Paragraph("📋 Бағалар", header))
+        content.append(Paragraph("Бағалар", header))
         content.append(table)
         content.append(Spacer(1,15))
 
-        # CHARTS
-        content.append(Paragraph("📊 Пәндер", header))
+        # CHART 1
+        content.append(Paragraph("Пәндер", header))
         content.append(Image(chart1, width=400, height=250))
 
         content.append(Spacer(1,15))
 
-        content.append(Paragraph("📈 Прогресс", header))
+        # CHART 2
+        content.append(Paragraph("Прогресс", header))
         content.append(Image(chart2, width=400, height=250))
 
         doc.build(content)
 
-        # DOWNLOAD
         with open("report.pdf","rb") as f:
             pdf_bytes = f.read()
 
-        st.download_button(
-            "📥 PDF жүктеу",
-            pdf_bytes,
-            file_name=f"{row['аты']}_report.pdf",
-            mime="application/pdf"
-        )
-
-        # PREVIEW
-        base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-
-        components.html(
-            f"""
-            <embed src="data:application/pdf;base64,{base64_pdf}"
-            width="100%" height="700">
-            """,
-            height=700
-        )
+        st.download_button("📥 PDF жүктеу", pdf_bytes, file_name="report.pdf")
 # -------------------------------
 # RATING
 # -------------------------------
