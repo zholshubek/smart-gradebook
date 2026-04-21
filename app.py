@@ -306,9 +306,11 @@ elif menu == "PDF":
 
         kpi_table = Table(kpi_data)
         kpi_table.setStyle(TableStyle([
+            ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),  # 🔥 ЕҢ МАҢЫЗДЫ
             ('BACKGROUND',(0,0),(-1,0),colors.green),
             ('TEXTCOLOR',(0,0),(-1,0),colors.white),
-            ('GRID',(0,0),(-1,-1),1,colors.black)
+            ('GRID',(0,0),(-1,-1),1,colors.black),
+            ('ALIGN',(0,0),(-1,-1),'CENTER')
         ]))
 
         content.append(Paragraph("KPI", header))
