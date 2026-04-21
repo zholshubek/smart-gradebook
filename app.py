@@ -464,6 +464,89 @@ elif menu == "Болжау":
 
 # -------------------------------
 # MESSAGE
+
+elif menu == "Профиль":
+
+    st.title("👤 Оқушы профилі")
+
+    # -------------------------------
+    # 👤 ТАҢДАУ
+    # -------------------------------
+    student = st.selectbox("Оқушы таңда", df['аты'])
+    row = df[df['аты']==student].iloc[0]
+
+    # -------------------------------
+    # 📊 KPI
+    # -------------------------------
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("📈 Орташа балл", round(row['орташа балл'],2))
+    col2.metric("📅 Қатысу", f"{row['қатысу']}%")
+    col3.metric("⚠️ Қауіп", "Иә" if row['қауіп']==1 else "Жоқ")
+
+    st.divider()
+
+    # -------------------------------
+    # 📊 ПӘНДЕР ГРАФИГІ
+    # -------------------------------
+    st.subheader("📊 Пәндер бойынша нәтиже")
+
+    fig, ax = plt.subplots()
+
+    scores = [row[s] for s in subjects]
+    bars = ax.bar(subjects, scores)
+
+    colors = ['green' if x>70 else 'orange' if x>50 else 'red' for x in scores]
+    for bar, color in zip(bars, colors):
+        bar.set_color(color)
+
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
+
+    st.divider()
+
+    # -------------------------------
+    # 📈 ПРОГРЕСС
+    # -------------------------------
+    st.subheader("📈 Прогресс")
+
+    fig2, ax2 = plt.subplots()
+
+    ax2.plot(["Өткен","Қазір"], [row['өткен'], row['орташа балл']], marker='o')
+
+    st.pyplot(fig2)
+
+    st.divider()
+
+    # -------------------------------
+    # 🧠 AI АНАЛИЗ
+    # -------------------------------
+    st.subheader("🧠 AI талдау")
+
+    st.info(f"""
+📉 Әлсіз пән: {row['ең әлсіз пән']}
+
+🧠 Ұсыныс:
+{row['AI']}
+""")
+
+    st.divider()
+
+    # -------------------------------
+    # 📚 ТАПСЫРМА
+    # -------------------------------
+    st.subheader("📚 Ұсынылған тапсырма")
+
+    st.success(row['тапсырма'])
+
+    st.divider()
+
+    # -------------------------------
+    # 📋 ТОЛЫҚ МӘЛІМЕТ
+    # -------------------------------
+    st.subheader("📋 Толық мәлімет")
+
+    st.dataframe(df[df['аты']==student])
 # -------------------------------
 elif menu == "Хабар":
 
