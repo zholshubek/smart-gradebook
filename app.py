@@ -474,6 +474,9 @@ elif menu == "📲 Хабар":
 # -------------------------------
 # PDF (TIMES NEW ROMAN)
 # -------------------------------
+# -------------------------------
+# 🧾 PDF (PRO VERSION)
+# -------------------------------
 elif menu == "🧾 PDF":
 
     student = st.selectbox("Оқушы таңда", df['аты'])
@@ -481,45 +484,99 @@ elif menu == "🧾 PDF":
 
     if st.button("📄 PDF жасау"):
 
-        # график
-        plt.figure()
+        # -------------------------------
+        # 📊 ГРАФИК ЖАСАУ
+        # -------------------------------
+        chart_path = "chart.png"
+
+        plt.figure(figsize=(6,4))
         scores = [row[s] for s in subjects]
-        plt.bar(subjects, scores)
+        plt.bar(subjects, scores, color='skyblue')
         plt.xticks(rotation=45)
+        plt.title("Пәндер бойынша балл")
         plt.tight_layout()
-        plt.savefig("chart.png")
+        plt.savefig(chart_path)
         plt.close()
 
+        # -------------------------------
+        # 📄 PDF ҚҰРУ
+        # -------------------------------
         doc = SimpleDocTemplate("report.pdf", pagesize=letter)
         styles = getSampleStyleSheet()
 
+        # Times New Roman стиль
         normal = ParagraphStyle(
             'TNR_Normal',
             parent=styles['Normal'],
             fontName='TNR',
-            fontSize=12
+            fontSize=12,
+            leading=14
         )
 
         title = ParagraphStyle(
             'TNR_Title',
             parent=styles['Normal'],
             fontName='TNR',
-            fontSize=16
+            fontSize=18,
+            spaceAfter=10
         )
 
         content = []
-        content.append(Paragraph("ОҚУШЫ ЕСЕБІ", title))
-        content.append(Spacer(1,12))
 
+        # -------------------------------
+        # 🏫 ТАҚЫРЫП
+        # -------------------------------
+        content.append(Paragraph("ОҚУШЫ ЕСЕБІ", title))
+        content.append(Spacer(1,10))
+
+        # -------------------------------
+        # 👤 НЕГІЗГІ МӘЛІМЕТ
+        # -------------------------------
         content.append(Paragraph(f"Аты: {row['аты']}", normal))
         content.append(Paragraph(f"Орташа балл: {round(row['орташа балл'],2)}", normal))
-        content.append(Paragraph(f"AI кеңес: {row['AI']}", normal))
-        content.append(Spacer(1,20))
+        content.append(Paragraph(f"Әлсіз пән: {row['ең әлсіз пән']}", normal))
+        content.append(Paragraph(f"Қатысу: {row['қатысу']}%", normal))
 
-        content.append(Image("chart.png", width=400, height=250))
+        content.append(Spacer(1,12))
 
+        # -------------------------------
+        # 🧠 AI ҰСЫНЫС
+        # -------------------------------
+        content.append(Paragraph("ҰСЫНЫС:", title))
+        content.append(Paragraph(row['AI'], normal))
+        content.append(Paragraph(f"Тапсырма: {row['тапсырма']}", normal))
+
+        content.append(Spacer(1,15))
+
+        # -------------------------------
+        # 📊 КЕСТЕ
+        # -------------------------------
+        table_data = [["Пән", "Балл"]]
+
+        for s in subjects:
+            table_data.append([s, str(row[s])])
+
+        table = Table(table_data)
+
+        content.append(Paragraph("Бағалар:", title))
+        content.append(table)
+
+        content.append(Spacer(1,15))
+
+        # -------------------------------
+        # 📈 ГРАФИК ҚОСУ
+        # -------------------------------
+        content.append(Paragraph("График:", title))
+        content.append(Image(chart_path, width=400, height=250))
+
+        # -------------------------------
+        # PDF ҚҰРУ
+        # -------------------------------
         doc.build(content)
 
+        # -------------------------------
+        # 📥 ЖҮКТЕУ
+        # -------------------------------
         with open("report.pdf","rb") as f:
             st.download_button(
                 "📥 PDF жүктеу",
