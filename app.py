@@ -222,9 +222,20 @@ elif menu == "Хабар":
 # -------------------------------
 # PDF
 # -------------------------------
+import base64
+import streamlit.components.v1 as components
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+
+# FONT
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
+
 elif menu == "PDF":
 
-    st.title("🧾 PDF есеп (Viewer)")
+    st.title("🧾 PDF есеп (PRO)")
 
     student = st.selectbox("Оқушы таңда", df['аты'])
     row = df[df['аты']==student].iloc[0]
@@ -234,12 +245,15 @@ elif menu == "PDF":
         # -------------------------------
         # 📊 ГРАФИК
         # -------------------------------
+        chart_path = "chart.png"
+
         plt.figure(figsize=(6,4))
         scores = [row[s] for s in subjects]
-        plt.bar(subjects, scores, color='green')
+        plt.bar(subjects, scores, color='#4CAF50')
         plt.xticks(rotation=45)
+        plt.title("Пәндер бойынша балл")
         plt.tight_layout()
-        plt.savefig("chart.png")
+        plt.savefig(chart_path)
         plt.close()
 
         # -------------------------------
@@ -248,69 +262,104 @@ elif menu == "PDF":
         doc = SimpleDocTemplate("report.pdf")
         styles = getSampleStyleSheet()
 
+        title = ParagraphStyle(
+            'title',
+            fontName='DejaVu',
+            fontSize=18,
+            textColor=colors.darkblue,
+            spaceAfter=10
+        )
+
+        normal = ParagraphStyle(
+            'normal',
+            fontName='DejaVu',
+            fontSize=12,
+            leading=14
+        )
+
+        header = ParagraphStyle(
+            'header',
+            fontName='DejaVu',
+            fontSize=14,
+            textColor=colors.black
+        )
+
         content = []
-        content.append(Paragraph("STUDENT REPORT", styles["Title"]))
+
+        # -------------------------------
+        # 🏫 ТАҚЫРЫП
+        # -------------------------------
+        content.append(Paragraph("🏫 ОҚУШЫ ЕСЕБІ", title))
         content.append(Spacer(1,10))
-        content.append(Paragraph(f"Name: {row['аты']}", styles["Normal"]))
-        content.append(Paragraph(f"Average: {round(row['орташа балл'],2)}", styles["Normal"]))
-        content.append(Paragraph(f"Advice: {row['AI']}", styles["Normal"]))
-        content.append(Spacer(1,20))
-        content.append(Image("chart.png", width=400, height=250))
+
+        # -------------------------------
+        # 👤 НЕГІЗГІ МӘЛІМЕТ
+        # -------------------------------
+        content.append(Paragraph(f"Аты: {row['аты']}", normal))
+        content.append(Paragraph(f"Орташа балл: {round(row['орташа балл'],2)}", normal))
+        content.append(Paragraph(f"Әлсіз пән: {row['ең әлсіз пән']}", normal))
+        content.append(Paragraph(f"Қатысу: {row['қатысу']}%", normal))
+        content.append(Spacer(1,12))
+
+        # -------------------------------
+        # 🧠 ҰСЫНЫС
+        # -------------------------------
+        content.append(Paragraph("🧠 ҰСЫНЫС", header))
+        content.append(Paragraph(row['AI'], normal))
+        content.append(Paragraph(f"Тапсырма: {row['тапсырма']}", normal))
+        content.append(Spacer(1,15))
+
+        # -------------------------------
+        # 📊 КЕСТЕ
+        # -------------------------------
+        table_data = [["Пән", "Балл"]]
+        for s in subjects:
+            table_data.append([s, str(row[s])])
+
+        table = Table(table_data)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.grey),
+            ('TEXTCOLOR',(0,0),(-1,0),colors.white),
+            ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ('ALIGN',(0,0),(-1,-1),'CENTER')
+        ]))
+
+        content.append(Paragraph("📋 Бағалар", header))
+        content.append(table)
+        content.append(Spacer(1,15))
+
+        # -------------------------------
+        # 📈 ГРАФИК
+        # -------------------------------
+        content.append(Paragraph("📊 График", header))
+        content.append(Image(chart_path, width=400, height=250))
 
         doc.build(content)
 
         # -------------------------------
-        # 📥 ФАЙЛ ОҚУ
+        # 📥 ЖҮКТЕУ
         # -------------------------------
-        with open("report.pdf", "rb") as f:
+        with open("report.pdf","rb") as f:
             pdf_bytes = f.read()
 
-        # -------------------------------
-        # 📥 DOWNLOAD
-        # -------------------------------
         st.download_button(
-            label="📥 PDF жүктеу",
-            data=pdf_bytes,
+            "📥 PDF жүктеу",
+            pdf_bytes,
             file_name=f"{row['аты']}_report.pdf",
             mime="application/pdf"
         )
 
         # -------------------------------
-        # 🌐 VIEWER (embed)
+        # 🌐 PREVIEW
         # -------------------------------
         base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
 
-        st.markdown("### 👁 PDF алдын ала көру")
-
         components.html(
             f"""
-            <div style="border:1px solid #ccc; border-radius:10px; overflow:hidden">
-                <embed src="data:application/pdf;base64,{base64_pdf}"
-                width="100%" height="600" type="application/pdf">
-            </div>
+            <embed src="data:application/pdf;base64,{base64_pdf}"
+            width="100%" height="600">
             """,
-            height=620
-        )
-
-        # -------------------------------
-        # 🖨 PRINT BUTTON
-        # -------------------------------
-        components.html(
-            f"""
-            <script>
-            function printPDF() {{
-                var win = window.open("");
-                win.document.write('<iframe src="data:application/pdf;base64,{base64_pdf}" frameborder="0" style="width:100%;height:100%;"></iframe>');
-                win.print();
-            }}
-            </script>
-
-            <button onclick="printPDF()" 
-            style="margin-top:10px;padding:10px 20px;background:#2563eb;color:white;border:none;border-radius:8px;cursor:pointer;">
-            🖨 Басып шығару
-            </button>
-            """,
-            height=80
+            height=600
         )
 # -------------------------------
 # RATING
