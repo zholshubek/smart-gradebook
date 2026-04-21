@@ -95,7 +95,11 @@ subjects = ['математика','физика','информатика','қа
 # -------------------------------
 df['орташа балл'] = df[subjects].mean(axis=1)
 df['қауіп'] = np.where((df['орташа балл'] < 60) | (df['қатысу'] < 60), 1, 0)
-
+# -------------------------------
+# PROGRESS (міндетті)
+# -------------------------------
+if 'өткен' not in df.columns:
+    df['өткен'] = df['орташа балл'] - np.random.randint(0,10,len(df))
 def weak(row):
     low = row[subjects][row[subjects] < 50]
     return low.idxmin() if len(low)>0 else "Жоқ"
