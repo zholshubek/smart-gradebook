@@ -190,30 +190,30 @@ elif menu == "Аналитика":
     # -------------------------------
     # 📊 KPI
     # -------------------------------
-col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4 = st.columns(4)
 
-col1.markdown(f"""
-<div class="kpi-card">
+    col1.markdown(f"""
+    <div class="kpi-card">
     <div class="kpi-title">📈 Орташа балл</div>
     <div class="kpi-value">{round(df['орташа балл'].mean(),2)}</div>
-</div>
-""", unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
 
-col2.markdown(f"""
+    col2.markdown(f"""
 <div class="kpi-card">
     <div class="kpi-title">⚠️ Қауіпті</div>
     <div class="kpi-value">{df['қауіп'].sum()}</div>
 </div>
 """, unsafe_allow_html=True)
 
-col3.markdown(f"""
+    col3.markdown(f"""
 <div class="kpi-card">
     <div class="kpi-title">🏆 Үздік</div>
     <div class="kpi-value">{len(df[df['орташа балл']>80])}</div>
 </div>
 """, unsafe_allow_html=True)
 
-col4.markdown(f"""
+    col4.markdown(f"""
 <div class="kpi-card">
     <div class="kpi-title">📉 Әлсіз пән</div>
     <div class="kpi-value">{df['ең әлсіз пән'].value_counts().idxmax()}</div>
