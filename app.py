@@ -327,9 +327,11 @@ elif menu == "PDF":
 
         table = Table(table_data)
         table.setStyle(TableStyle([
+            ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),   # 🔥 ОСЫ ЕҢ МАҢЫЗДЫ
             ('BACKGROUND',(0,0),(-1,0),colors.darkblue),
             ('TEXTCOLOR',(0,0),(-1,0),colors.white),
-            ('GRID',(0,0),(-1,-1),1,colors.black)
+            ('GRID',(0,0),(-1,-1),1,colors.black),
+            ('ALIGN',(0,0),(-1,-1),'CENTER')
         ]))
 
         content.append(Paragraph("Бағалар", header))
