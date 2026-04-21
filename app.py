@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import base64
+import streamlit.components.v1 as components
 from sklearn.ensemble import RandomForestClassifier
 
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
@@ -217,35 +218,50 @@ elif menu == "Хабар":
 # -------------------------------
 elif menu == "PDF":
 
-    st.title("🧾 PDF есеп (Preview)")
+    st.title("🧾 PDF есеп (Viewer)")
 
-    s = st.selectbox("Оқушы", df['аты'])
-    row = df[df['аты']==s].iloc[0]
+    student = st.selectbox("Оқушы таңда", df['аты'])
+    row = df[df['аты']==student].iloc[0]
 
     if st.button("📄 PDF жасау"):
 
-        plt.figure()
+        # -------------------------------
+        # 📊 ГРАФИК
+        # -------------------------------
+        plt.figure(figsize=(6,4))
         scores = [row[s] for s in subjects]
-        plt.bar(subjects, scores)
+        plt.bar(subjects, scores, color='green')
         plt.xticks(rotation=45)
         plt.tight_layout()
         plt.savefig("chart.png")
         plt.close()
 
+        # -------------------------------
+        # 📄 PDF
+        # -------------------------------
         doc = SimpleDocTemplate("report.pdf")
         styles = getSampleStyleSheet()
 
         content = []
-        content.append(Paragraph("Student Report", styles["Title"]))
+        content.append(Paragraph("STUDENT REPORT", styles["Title"]))
+        content.append(Spacer(1,10))
         content.append(Paragraph(f"Name: {row['аты']}", styles["Normal"]))
-        content.append(Paragraph(f"Average: {row['орташа балл']}", styles["Normal"]))
+        content.append(Paragraph(f"Average: {round(row['орташа балл'],2)}", styles["Normal"]))
+        content.append(Paragraph(f"Advice: {row['AI']}", styles["Normal"]))
+        content.append(Spacer(1,20))
         content.append(Image("chart.png", width=400, height=250))
 
         doc.build(content)
 
+        # -------------------------------
+        # 📥 ФАЙЛ ОҚУ
+        # -------------------------------
         with open("report.pdf", "rb") as f:
             pdf_bytes = f.read()
 
+        # -------------------------------
+        # 📥 DOWNLOAD
+        # -------------------------------
         st.download_button(
             label="📥 PDF жүктеу",
             data=pdf_bytes,
@@ -253,16 +269,43 @@ elif menu == "PDF":
             mime="application/pdf"
         )
 
-        # PDF preview
+        # -------------------------------
+        # 🌐 VIEWER (embed)
+        # -------------------------------
         base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
 
-        pdf_display = f"""
-        <iframe src="data:application/pdf;base64,{base64_pdf}" 
-        width="100%" height="600"></iframe>
-        """
+        st.markdown("### 👁 PDF алдын ала көру")
 
-        st.markdown("### 📄 PDF алдын ала көру")
-        st.markdown(pdf_display, unsafe_allow_html=True)
+        components.html(
+            f"""
+            <div style="border:1px solid #ccc; border-radius:10px; overflow:hidden">
+                <embed src="data:application/pdf;base64,{base64_pdf}"
+                width="100%" height="600" type="application/pdf">
+            </div>
+            """,
+            height=620
+        )
+
+        # -------------------------------
+        # 🖨 PRINT BUTTON
+        # -------------------------------
+        components.html(
+            f"""
+            <script>
+            function printPDF() {{
+                var win = window.open("");
+                win.document.write('<iframe src="data:application/pdf;base64,{base64_pdf}" frameborder="0" style="width:100%;height:100%;"></iframe>');
+                win.print();
+            }}
+            </script>
+
+            <button onclick="printPDF()" 
+            style="margin-top:10px;padding:10px 20px;background:#2563eb;color:white;border:none;border-radius:8px;cursor:pointer;">
+            🖨 Басып шығару
+            </button>
+            """,
+            height=80
+        )
 # -------------------------------
 # RATING
 # -------------------------------
