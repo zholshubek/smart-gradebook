@@ -227,25 +227,57 @@ elif menu == "Хабар":
 
 elif menu == "PDF":
 
-    st.title("🧾 PDF есеп")
+    st.title("🧾 PDF есеп (Advanced)")
 
     student = st.selectbox("Оқушы таңда", df['аты'])
     row = df[df['аты']==student].iloc[0]
 
     if st.button("📄 PDF жасау"):
 
-        # 📊 график
-        chart_path = "chart.png"
+        # -------------------------------
+        # 📊 1. ПӘН ГРАФИК
+        # -------------------------------
+        chart1 = "chart1.png"
+        scores = [row[s] for s in subjects]
 
         plt.figure(figsize=(6,4))
-        scores = [row[s] for s in subjects]
         plt.bar(subjects, scores, color='#4CAF50')
         plt.xticks(rotation=45)
+        plt.title("Пәндер бойынша балл")
         plt.tight_layout()
-        plt.savefig(chart_path)
+        plt.savefig(chart1)
         plt.close()
 
+        # -------------------------------
+        # 📈 2. ПРОГРЕСС
+        # -------------------------------
+        chart2 = "chart2.png"
+
+        plt.figure(figsize=(6,4))
+        plt.plot(["Өткен","Қазір"], [row['өткен'], row['орташа балл']], marker='o')
+        plt.title("Прогресс")
+        plt.grid()
+        plt.tight_layout()
+        plt.savefig(chart2)
+        plt.close()
+
+        # -------------------------------
+        # 📊 3. СЫНЫППЕН САЛЫСТЫРУ
+        # -------------------------------
+        chart3 = "chart3.png"
+
+        plt.figure(figsize=(6,4))
+        plt.bar(df['аты'], df['орташа балл'], color='skyblue')
+        plt.axhline(df['орташа балл'].mean(), color='red', linestyle='--')
+        plt.xticks(rotation=45)
+        plt.title("Сыныппен салыстыру")
+        plt.tight_layout()
+        plt.savefig(chart3)
+        plt.close()
+
+        # -------------------------------
         # 📄 PDF
+        # -------------------------------
         doc = SimpleDocTemplate("report.pdf")
         styles = getSampleStyleSheet()
 
@@ -253,33 +285,106 @@ elif menu == "PDF":
             'title',
             fontName='DejaVu',
             fontSize=18,
-            textColor=colors.darkblue
+            textColor=colors.darkblue,
+            alignment=1
+        )
+
+        header = ParagraphStyle(
+            'header',
+            fontName='DejaVu',
+            fontSize=14
         )
 
         normal = ParagraphStyle(
             'normal',
             fontName='DejaVu',
-            fontSize=12
+            fontSize=11
         )
 
         content = []
 
+        # HEADER
+        content.append(Paragraph("🏫 SMART SCHOOL SYSTEM", title))
         content.append(Paragraph("ОҚУШЫ ЕСЕБІ", title))
-        content.append(Spacer(1,10))
+        content.append(Spacer(1,15))
 
+        # INFO
         content.append(Paragraph(f"Аты: {row['аты']}", normal))
         content.append(Paragraph(f"Орташа балл: {round(row['орташа балл'],2)}", normal))
-        content.append(Paragraph(f"Ұсыныс: {row['AI']}", normal))
-        content.append(Spacer(1,10))
+        content.append(Paragraph(f"Әлсіз пән: {row['ең әлсіз пән']}", normal))
+        content.append(Spacer(1,15))
 
-        content.append(Image(chart_path, width=400, height=250))
+        # -------------------------------
+# 📊 KPI БЛОК
+# -------------------------------
+
+avg_score = round(df['орташа балл'].mean(), 2)
+danger_count = df['қауіп'].sum()
+top_count = len(df[df['орташа балл'] > 80])
+weak_subject = df['ең әлсіз пән'].value_counts().idxmax()
+
+kpi_data = [
+    ["Көрсеткіш", "Мәні"],
+    ["Орташа балл", str(avg_score)],
+    ["Қауіпті оқушылар", str(danger_count)],
+    ["Үздік оқушылар", str(top_count)],
+    ["Ең әлсіз пән", weak_subject]
+]
+
+kpi_table = Table(kpi_data)
+
+kpi_table.setStyle(TableStyle([
+    ('BACKGROUND', (0,0), (-1,0), colors.green),
+    ('TEXTCOLOR',(0,0),(-1,0),colors.white),
+    ('GRID',(0,0),(-1,-1),1,colors.black),
+    ('ALIGN',(0,0),(-1,-1),'CENTER')
+]))
+
+content.append(Paragraph("📊 Жалпы көрсеткіштер", header))
+content.append(kpi_table)
+content.append(Spacer(1,20))
+
+        # AI
+        content.append(Paragraph("🧠 Ұсыныс", header))
+        content.append(Paragraph(row['AI'], normal))
+        content.append(Spacer(1,15))
+
+        # TABLE
+        table_data = [["Пән","Балл"]]
+        for s in subjects:
+            table_data.append([s, str(row[s])])
+
+        table = Table(table_data)
+        table.setStyle(TableStyle([
+            ('BACKGROUND',(0,0),(-1,0),colors.darkblue),
+            ('TEXTCOLOR',(0,0),(-1,0),colors.white),
+            ('GRID',(0,0),(-1,-1),1,colors.black)
+        ]))
+
+        content.append(Paragraph("📋 Бағалар", header))
+        content.append(table)
+        content.append(Spacer(1,20))
+
+        # CHARTS
+        content.append(Paragraph("📊 Пәндер графигі", header))
+        content.append(Image(chart1, width=400, height=250))
+
+        content.append(Spacer(1,15))
+
+        content.append(Paragraph("📈 Прогресс", header))
+        content.append(Image(chart2, width=400, height=250))
+
+        content.append(Spacer(1,15))
+
+        content.append(Paragraph("📊 Сыныппен салыстыру", header))
+        content.append(Image(chart3, width=400, height=250))
 
         doc.build(content)
 
+        # DOWNLOAD
         with open("report.pdf","rb") as f:
             pdf_bytes = f.read()
 
-        # 📥 download
         st.download_button(
             "📥 PDF жүктеу",
             pdf_bytes,
@@ -287,15 +392,15 @@ elif menu == "PDF":
             mime="application/pdf"
         )
 
-        # 👁 preview
+        # PREVIEW
         base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
 
         components.html(
             f"""
             <embed src="data:application/pdf;base64,{base64_pdf}"
-            width="100%" height="600">
+            width="100%" height="700">
             """,
-            height=600
+            height=700
         )
 # -------------------------------
 # RATING
