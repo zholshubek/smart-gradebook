@@ -264,12 +264,101 @@ elif menu == "📊 Аналитика":
 # PREDICTION
 # -------------------------------
 elif menu == "🧠 Болжау":
-    vals = [st.slider(s,0,100,60) for s in subjects]
-    att = st.slider("қатысу",0,100,70)
 
-    if st.button("Болжау"):
-        pred = model.predict([vals+[att]])
-        st.success("Қауіпсіз" if pred[0]==0 else "Қауіпті")
+    st.title("🧠 Ақылды болжау жүйесі")
+
+    st.markdown("### 📊 Оқушы мәліметін енгізіңіз")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        math = st.slider("📘 Математика", 0, 100, 60)
+        physics = st.slider("🔬 Физика", 0, 100, 60)
+        info = st.slider("💻 Информатика", 0, 100, 60)
+
+    with col2:
+        kaz = st.slider("📖 Қазақ тілі", 0, 100, 60)
+        eng = st.slider("🌍 Ағылшын тілі", 0, 100, 60)
+        att = st.slider("📅 Қатысу", 0, 100, 70)
+
+    input_data = [math, physics, info, kaz, eng, att]
+
+    if st.button("🔍 Болжау"):
+
+        # 🔮 Болжау
+        pred = model.predict([input_data])[0]
+
+        # 📊 Ықтималдық
+        prob = model.predict_proba([input_data])[0]
+
+        st.divider()
+
+        # -------------------------------
+        # 🎯 НӘТИЖЕ
+        # -------------------------------
+        if pred == 1:
+            st.error("⚠️ Оқушы қауіп тобында")
+        else:
+            st.success("✅ Оқушы қауіпсіз")
+
+        st.metric("📊 Қауіп ықтималдығы", f"{round(prob[1]*100,1)} %")
+
+        st.divider()
+
+        # -------------------------------
+        # 🧠 AI ТҮСІНДІРУ
+        # -------------------------------
+        st.subheader("🧠 AI түсіндірме")
+
+        weak_subject = subjects[np.argmin(input_data[:5])]
+
+        if pred == 1:
+            st.warning(f"""
+Бұл оқушының нәтижесі төмен болуы мүмкін.
+
+Негізгі әлсіз пән: **{weak_subject}**
+
+Себептері:
+- Балл төмен
+- Қатысу жеткіліксіз
+
+Ұсыныс:
+- Қосымша сабақ
+- Күнделікті практика
+""")
+        else:
+            st.info(f"""
+Оқушының жағдайы жақсы.
+
+Күшті жақтары:
+- Жоғары орташа балл
+- Қатысу жақсы
+
+Ұсыныс:
+- Нәтижені сақтау
+- Әлсіз пәндерді аздап қайталау
+""")
+
+        st.divider()
+
+        # -------------------------------
+        # 📊 ВИЗУАЛИЗАЦИЯ
+        # -------------------------------
+        st.subheader("📊 Пәндер бойынша анализ")
+
+        fig, ax = plt.subplots()
+
+        bars = ax.bar(subjects, input_data[:5])
+
+        # түстер
+        colors = ['green' if x>70 else 'orange' if x>50 else 'red' for x in input_data[:5]]
+        for bar, color in zip(bars, colors):
+            bar.set_color(color)
+
+        plt.xticks(rotation=45)
+        ax.set_title("Пәндер деңгейі")
+
+        st.pyplot(fig)
 
 # -------------------------------
 # PROFILE
