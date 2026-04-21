@@ -3,12 +3,17 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
 from sklearn.ensemble import RandomForestClassifier
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+
 
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
-
+pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 # -------------------------------
 # CONFIG
 # -------------------------------
@@ -377,9 +382,7 @@ elif menu == "🧾 PDF":
 
     if st.button("📄 PDF жасау"):
 
-        # -------------------------------
-        # 📊 ГРАФИК ЖАСАУ
-        # -------------------------------
+        # 📊 график
         chart_path = "chart.png"
 
         plt.figure(figsize=(6,4))
@@ -391,28 +394,76 @@ elif menu == "🧾 PDF":
         plt.savefig(chart_path)
         plt.close()
 
-        # -------------------------------
-        # 📄 PDF ҚҰРУ
-        # -------------------------------
+        # 📄 PDF
         doc = SimpleDocTemplate("report.pdf", pagesize=letter)
         styles = getSampleStyleSheet()
 
-        # Times New Roman стиль
+        # 🔥 DejaVu стильдер
         normal = ParagraphStyle(
-            'TNR_Normal',
+            'DejaVu_Normal',
             parent=styles['Normal'],
-            fontName='TNR',
+            fontName='DejaVu',
             fontSize=12,
             leading=14
         )
 
         title = ParagraphStyle(
-            'TNR_Title',
+            'DejaVu_Title',
             parent=styles['Normal'],
-            fontName='TNR',
+            fontName='DejaVu',
             fontSize=18,
             spaceAfter=10
         )
+
+        content = []
+
+        # Тақырып
+        content.append(Paragraph("ОҚУШЫ ЕСЕБІ", title))
+        content.append(Spacer(1,12))
+
+        # Мәлімет
+        content.append(Paragraph(f"Аты: {row['аты']}", normal))
+        content.append(Paragraph(f"Орташа балл: {round(row['орташа балл'],2)}", normal))
+        content.append(Paragraph(f"Әлсіз пән: {row['ең әлсіз пән']}", normal))
+        content.append(Paragraph(f"Қатысу: {row['қатысу']}%", normal))
+
+        content.append(Spacer(1,12))
+
+        # AI
+        content.append(Paragraph("ҰСЫНЫС:", title))
+        content.append(Paragraph(row['AI'], normal))
+        content.append(Paragraph(f"Тапсырма: {row['тапсырма']}", normal))
+
+        content.append(Spacer(1,15))
+
+        # 📊 Кесте
+        table_data = [["Пән", "Балл"]]
+        for s in subjects:
+            table_data.append([s, str(row[s])])
+
+        from reportlab.platypus import Table
+
+        table = Table(table_data)
+
+        content.append(Paragraph("Бағалар:", title))
+        content.append(table)
+
+        content.append(Spacer(1,15))
+
+        # 📈 График
+        content.append(Paragraph("График:", title))
+        content.append(Image(chart_path, width=400, height=250))
+
+        doc.build(content)
+
+        # 📥 Жүктеу
+        with open("report.pdf","rb") as f:
+            st.download_button(
+                "📥 PDF жүктеу",
+                f,
+                file_name=f"{row['аты']}_report.pdf",
+                mime="application/pdf"
+            )
 
         content = []
 
