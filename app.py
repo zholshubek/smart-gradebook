@@ -1,20 +1,10 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import base64
-
 import streamlit.components.v1 as components
-from sklearn.ensemble import RandomForestClassifier
-
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-
-
 
 # -------------------------------
 # CONFIG
@@ -222,42 +212,28 @@ elif menu == "Хабар":
 # -------------------------------
 # PDF
 # -------------------------------
-import base64
-import streamlit.components.v1 as components
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-from reportlab.lib import colors
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-
-# FONT
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
 elif menu == "PDF":
-    st.title("PDF")
+
+    st.title("🧾 PDF есеп")
 
     student = st.selectbox("Оқушы таңда", df['аты'])
     row = df[df['аты']==student].iloc[0]
 
     if st.button("📄 PDF жасау"):
 
-        # -------------------------------
-        # 📊 ГРАФИК
-        # -------------------------------
+        # 📊 график
         chart_path = "chart.png"
 
         plt.figure(figsize=(6,4))
         scores = [row[s] for s in subjects]
         plt.bar(subjects, scores, color='#4CAF50')
         plt.xticks(rotation=45)
-        plt.title("Пәндер бойынша балл")
         plt.tight_layout()
         plt.savefig(chart_path)
         plt.close()
 
-        # -------------------------------
         # 📄 PDF
-        # -------------------------------
         doc = SimpleDocTemplate("report.pdf")
         styles = getSampleStyleSheet()
 
@@ -265,82 +241,33 @@ elif menu == "PDF":
             'title',
             fontName='DejaVu',
             fontSize=18,
-            textColor=colors.darkblue,
-            spaceAfter=10
+            textColor=colors.darkblue
         )
 
         normal = ParagraphStyle(
             'normal',
             fontName='DejaVu',
-            fontSize=12,
-            leading=14
-        )
-
-        header = ParagraphStyle(
-            'header',
-            fontName='DejaVu',
-            fontSize=14,
-            textColor=colors.black
+            fontSize=12
         )
 
         content = []
 
-        # -------------------------------
-        # 🏫 ТАҚЫРЫП
-        # -------------------------------
-        content.append(Paragraph("🏫 ОҚУШЫ ЕСЕБІ", title))
+        content.append(Paragraph("ОҚУШЫ ЕСЕБІ", title))
         content.append(Spacer(1,10))
 
-        # -------------------------------
-        # 👤 НЕГІЗГІ МӘЛІМЕТ
-        # -------------------------------
         content.append(Paragraph(f"Аты: {row['аты']}", normal))
         content.append(Paragraph(f"Орташа балл: {round(row['орташа балл'],2)}", normal))
-        content.append(Paragraph(f"Әлсіз пән: {row['ең әлсіз пән']}", normal))
-        content.append(Paragraph(f"Қатысу: {row['қатысу']}%", normal))
-        content.append(Spacer(1,12))
+        content.append(Paragraph(f"Ұсыныс: {row['AI']}", normal))
+        content.append(Spacer(1,10))
 
-        # -------------------------------
-        # 🧠 ҰСЫНЫС
-        # -------------------------------
-        content.append(Paragraph("🧠 ҰСЫНЫС", header))
-        content.append(Paragraph(row['AI'], normal))
-        content.append(Paragraph(f"Тапсырма: {row['тапсырма']}", normal))
-        content.append(Spacer(1,15))
-
-        # -------------------------------
-        # 📊 КЕСТЕ
-        # -------------------------------
-        table_data = [["Пән", "Балл"]]
-        for s in subjects:
-            table_data.append([s, str(row[s])])
-
-        table = Table(table_data)
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.grey),
-            ('TEXTCOLOR',(0,0),(-1,0),colors.white),
-            ('GRID', (0,0), (-1,-1), 1, colors.black),
-            ('ALIGN',(0,0),(-1,-1),'CENTER')
-        ]))
-
-        content.append(Paragraph("📋 Бағалар", header))
-        content.append(table)
-        content.append(Spacer(1,15))
-
-        # -------------------------------
-        # 📈 ГРАФИК
-        # -------------------------------
-        content.append(Paragraph("📊 График", header))
         content.append(Image(chart_path, width=400, height=250))
 
         doc.build(content)
 
-        # -------------------------------
-        # 📥 ЖҮКТЕУ
-        # -------------------------------
         with open("report.pdf","rb") as f:
             pdf_bytes = f.read()
 
+        # 📥 download
         st.download_button(
             "📥 PDF жүктеу",
             pdf_bytes,
@@ -348,9 +275,7 @@ elif menu == "PDF":
             mime="application/pdf"
         )
 
-        # -------------------------------
-        # 🌐 PREVIEW
-        # -------------------------------
+        # 👁 preview
         base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
 
         components.html(
