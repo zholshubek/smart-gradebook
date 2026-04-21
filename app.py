@@ -116,6 +116,29 @@ def ai(row):
         return f"{row['аты']} жақсы оқиды."
 
 df['AI'] = df.apply(ai, axis=1)
+# -------------------------------
+# SMART ТАПСЫРМА (міндетті)
+# -------------------------------
+def tasks(row):
+    subject = row['ең әлсіз пән']
+
+    if subject == "Жоқ":
+        return "Қосымша тапсырма қажет емес"
+    
+    if subject == "математика":
+        return "10 есеп шығару"
+    elif subject == "физика":
+        return "5 есеп + формула қайталау"
+    elif subject == "информатика":
+        return "Python практика"
+    elif subject == "қазақ тілі":
+        return "1 мәтін жазу"
+    elif subject == "ағылшын тілі":
+        return "20 сөз жаттау"
+    else:
+        return "Қайталау"
+
+df['тапсырма'] = df.apply(tasks, axis=1)
 
 df['хабар'] = df['аты'] + " - " + df['AI']
 
