@@ -656,4 +656,72 @@ elif menu == "🏆 Рейтинг":
     st.title("🏆 Оқушылар рейтингі")
     
     # Сұрыптау
-    df_sorted = df.sort_values('орташа балл', ascending=False).reset_index(drop=True
+    df_sorted = df.sort_values('орташа балл', ascending=False).reset_index(drop=True)
+    df_sorted['Рейтинг'] = df_sorted.index + 1
+    
+    # ТОП 3 карточкалары
+    st.subheader("🥇 Жүлдегерлер")
+    col1, col2, col3 = st.columns(3)
+    
+    medals = ["🥇", "🥈", "🥉"]
+    colors_medal = ["#FFD700", "#C0C0C0", "#CD7F32"]
+    
+    for i, col in enumerate([col1, col2, col3]):
+        if i < len(df_sorted):
+            with col:
+                st.markdown(f"""
+                <div style="text-align:center; padding:20px; background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:15px;">
+                    <div style="font-size:48px;">{medals[i]}</div>
+                    <div style="font-size:20px; font-weight:bold;">{df_sorted.iloc[i]['аты']}</div>
+                    <div style="font-size:28px; color:{colors_medal[i]};">{df_sorted.iloc[i]['орташа балл']:.1f}</div>
+                    <div style="font-size:12px; opacity:0.7;">балл</div>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # График
+    st.subheader("📊 Рейтинг графигі")
+    fig, ax = plt.subplots(figsize=(12, 5))
+    colors_bar = ['#4CAF50' if x >= 80 else '#FFC107' if x >= 60 else '#F44336' for x in df_sorted['орташа балл']]
+    bars = ax.bar(df_sorted['аты'], df_sorted['орташа балл'], color=colors_bar)
+    ax.axhline(y=60, color='red', linestyle='--', alpha=0.7, label='Қауіп шегі (60)')
+    ax.axhline(y=80, color='green', linestyle='--', alpha=0.7, label='Үздік шегі (80)')
+    ax.set_ylim(0, 100)
+    ax.set_ylabel("Орташа балл")
+    ax.set_title("Оқушылар рейтингі")
+    ax.legend()
+    
+    for bar, val in zip(bars, df_sorted['орташа балл']):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, f'{val:.1f}', ha='center', fontsize=9)
+    
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
+    
+    st.divider()
+    
+    # Толық кесте
+    st.subheader("📋 Толық рейтинг кестесі")
+    
+    def get_medal_emoji(rank):
+        if rank == 1: return "🥇"
+        elif rank == 2: return "🥈"
+        elif rank == 3: return "🥉"
+        return "📌"
+    
+    df_sorted['Орны'] = df_sorted['Рейтинг'].apply(get_medal_emoji)
+    display_df = df_sorted[['Орны', 'Рейтинг', 'аты', 'орташа балл', 'ең әлсіз пән', 'қатысу']]
+    display_df.columns = ['Орны', 'Рейтинг', 'Аты', 'Орташа балл', 'Әлсіз пән', 'Қатысу']
+    st.dataframe(display_df, use_container_width=True)
+    
+    # Статистика
+    st.divider()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("📊 Ең жоғары балл", f"{df['орташа балл'].max():.1f}")
+    with col2:
+        st.metric("📉 Ең төмен балл", f"{df['орташа балл'].min():.1f}")
+    with col3:
+        st.metric("📈 Медиана", f"{df['орташа балл'].median():.1f}")
+    with col4:
+        st.metric("📊 Стандартты ауытқу", f"{df['орташа балл'].std():.1f}")
