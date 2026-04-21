@@ -4,12 +4,14 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+import matplotlib.pyplot as plt
+import streamlit as st
+import pandas as pd
 
 # 🔤 Қазақша шрифт
 pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
 def generate_super_pdf(row, df):
-
     styles = getSampleStyleSheet()
 
     # 🎨 стильдер
@@ -69,13 +71,15 @@ def generate_super_pdf(row, df):
     for s in subjects:
         table_data.append([s, str(row[s])])
 
+    # ✅ Кестені дұрыс құру (бұл жерде қате жоқ)
     table = Table(table_data)
 
     table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.grey),
         ('TEXTCOLOR',(0,0),(-1,0),colors.white),
         ('ALIGN',(0,0),(-1,-1),'CENTER'),
-        ('GRID', (0,0), (-1,-1), 1, colors.black)
+        ('GRID', (0,0), (-1,-1), 1, colors.black),
+        ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),  # Қазақша шрифт қосу
     ]))
 
     # -------------------------------
@@ -116,13 +120,41 @@ def generate_super_pdf(row, df):
     content.append(Image("chart2.png", width=400, height=250))
 
     doc.build(content)
-    student = st.selectbox("Оқушы таңда", df['аты'])
-row = df[df['аты']==student].iloc[0]
+
+# -------------------------------
+# 🖥️ STREAMLIT ИНТЕРФЕЙСІ
+# -------------------------------
+
+# Деректерді жүктеу (мысал)
+# df = pd.read_csv("students.csv")  # нақты деректеріңізді жүктеңіз
+
+# Мысал деректер (тест үшін)
+data = {
+    'аты': ['Алима', 'Бауыржан', 'Дана'],
+    'математика': [85, 78, 92],
+    'физика': [80, 88, 85],
+    'информатика': [95, 82, 88],
+    'қазақ тілі': [90, 85, 91],
+    'ағылшын тілі': [88, 79, 86],
+    'өткен': [75, 80, 82],
+    'орташа балл': [87.6, 82.4, 88.4],
+    'ең әлсіз пән': ['физика', 'ағылшын тілі', 'физика'],
+    'қатысу': [95, 88, 92],
+    'AI': ['Математиканы жақсарту керек', 'Ағылшын тіліне көңіл бөліңіз', 'Жалпы жақсы нәтиже'],
+    'тапсырма': ['№15 есеп', 'Лексика жаттау', 'Қайталау']
+}
+df = pd.DataFrame(data)
+
+# Streamlit интерфейсі
+st.title("📚 Smart Gradebook - SUPER PDF")
+
+student = st.selectbox("Оқушы таңда", df['аты'])
+row = df[df['аты'] == student].iloc[0]
 
 if st.button("📄 SUPER PDF жасау"):
     generate_super_pdf(row, df)
-
-    with open("super_report.pdf","rb") as f:
+    
+    with open("super_report.pdf", "rb") as f:
         st.download_button(
             "📥 Жүктеу",
             f,
