@@ -234,8 +234,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
 elif menu == "PDF":
-
-    st.title("🧾 PDF есеп (PRO)")
+    st.title("PDF")
 
     student = st.selectbox("Оқушы таңда", df['аты'])
     row = df[df['аты']==student].iloc[0]
