@@ -1,16 +1,24 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 import base64
 import streamlit.components.v1 as components
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-from reportlab.lib import colors
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+
+from sklearn.ensemble import RandomForestClassifier
+
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import letter
 
 # -------------------------------
 # CONFIG
 # -------------------------------
-pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
+
+
 st.set_page_config(page_title="Smart School Portal", layout="wide")
+pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 st.markdown("""
 <style>
 .block-container {
