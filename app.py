@@ -190,12 +190,35 @@ elif menu == "Аналитика":
     # -------------------------------
     # 📊 KPI
     # -------------------------------
-    col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("📈 Орташа балл", round(df['орташа балл'].mean(),2))
-    col2.metric("⚠️ Қауіпті", df['қауіп'].sum())
-    col3.metric("🏆 Үздік", len(df[df['орташа балл'] > 80]))
-    col4.metric("📉 Әлсіз пән", df['ең әлсіз пән'].value_counts().idxmax())
+col1.markdown(f"""
+<div class="kpi-card">
+    <div class="kpi-title">📈 Орташа балл</div>
+    <div class="kpi-value">{round(df['орташа балл'].mean(),2)}</div>
+</div>
+""", unsafe_allow_html=True)
+
+col2.markdown(f"""
+<div class="kpi-card">
+    <div class="kpi-title">⚠️ Қауіпті</div>
+    <div class="kpi-value">{df['қауіп'].sum()}</div>
+</div>
+""", unsafe_allow_html=True)
+
+col3.markdown(f"""
+<div class="kpi-card">
+    <div class="kpi-title">🏆 Үздік</div>
+    <div class="kpi-value">{len(df[df['орташа балл']>80])}</div>
+</div>
+""", unsafe_allow_html=True)
+
+col4.markdown(f"""
+<div class="kpi-card">
+    <div class="kpi-title">📉 Әлсіз пән</div>
+    <div class="kpi-value">{df['ең әлсіз пән'].value_counts().idxmax()}</div>
+</div>
+""", unsafe_allow_html=True)
 
     st.divider()
 
