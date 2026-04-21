@@ -1,163 +1,225 @@
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-import matplotlib.pyplot as plt
 import streamlit as st
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.ensemble import RandomForestClassifier
 
-# 🔤 Қазақша шрифт
-pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
+# PDF
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
 
-def generate_super_pdf(row, df):
-    styles = getSampleStyleSheet()
+# -------------------------------
+# CONFIG
+# -------------------------------
+st.set_page_config(page_title="Smart School Portal", layout="wide")
 
-    # 🎨 стильдер
-    title = ParagraphStyle(
-        'title',
-        parent=styles['Normal'],
-        fontName='DejaVu',
-        fontSize=18,
-        textColor=colors.darkblue,
-        spaceAfter=10
-    )
+# -------------------------------
+# LOGIN
+# -------------------------------
+users = {"admin": "1234", "teacher": "1111"}
 
-    header = ParagraphStyle(
-        'header',
-        parent=styles['Normal'],
-        fontName='DejaVu',
-        fontSize=14,
-        textColor=colors.black,
-        spaceAfter=6
-    )
+if "login" not in st.session_state:
+    st.session_state.login = False
 
-    normal = ParagraphStyle(
-        'normal',
-        parent=styles['Normal'],
-        fontName='DejaVu',
-        fontSize=11
-    )
+if not st.session_state.login:
+    st.title("🔐 Жүйеге кіру")
 
-    # -------------------------------
-    # 📊 1. ГРАФИК (пәндер)
-    # -------------------------------
-    subjects = ['математика','физика','информатика','қазақ тілі','ағылшын тілі']
-    scores = [row[s] for s in subjects]
+    u = st.text_input("Логин")
+    p = st.text_input("Құпия сөз", type="password")
 
-    plt.figure(figsize=(6,4))
-    plt.bar(subjects, scores, color='#4CAF50')
-    plt.title("Пәндер бойынша балл")
+    if st.button("Кіру"):
+        if u in users and users[u] == p:
+            st.session_state.login = True
+            st.rerun()
+        else:
+            st.error("Қате логин")
+
+    st.stop()
+
+# Logout
+if st.sidebar.button("🚪 Шығу"):
+    st.session_state.login = False
+    st.rerun()
+
+# -------------------------------
+# MENU
+# -------------------------------
+st.sidebar.title("📚 Меню")
+menu = st.sidebar.radio("Бөлім:", [
+    "🏠 Dashboard",
+    "📊 Аналитика",
+    "🧠 Болжау",
+    "👤 Профиль",
+    "📲 Хабар",
+    "🧾 PDF",
+    "🏆 Рейтинг"
+])
+
+# -------------------------------
+# DATA
+# -------------------------------
+uploaded = st.sidebar.file_uploader("Excel жүктеу", type=["xlsx"])
+
+def load_data():
+    if uploaded:
+        df = pd.read_excel(uploaded)
+        req = ['аты','математика','физика','информатика','қазақ тілі','ағылшын тілі','қатысу']
+        if not all(c in df.columns for c in req):
+            st.error("Excel формат қате!")
+            st.stop()
+        return df
+    else:
+        return pd.DataFrame({
+            'аты':['Асан','Айгүл','Нұрсұлтан','Динара','Ержан','Мадина','Самат','Аружан'],
+            'математика':[80,50,40,90,65,30,85,55],
+            'физика':[70,55,45,95,60,35,88,50],
+            'информатика':[85,60,50,92,70,40,90,65],
+            'қазақ тілі':[75,58,48,88,68,45,86,60],
+            'ағылшын тілі':[78,52,46,91,66,38,87,58],
+            'қатысу':[90,60,50,95,70,40,92,65]
+        })
+
+df = load_data()
+subjects = ['математика','физика','информатика','қазақ тілі','ағылшын тілі']
+
+# -------------------------------
+# PROCESSING
+# -------------------------------
+df['орташа балл'] = df[subjects].mean(axis=1)
+
+# прогресс (қате болмау үшін)
+df['өткен'] = df['орташа балл'] - np.random.randint(0,10,len(df))
+
+df['қауіп'] = np.where((df['орташа балл'] < 60) | (df['қатысу'] < 60), 1, 0)
+
+def weak(row):
+    low = row[subjects][row[subjects] < 50]
+    return low.idxmin() if len(low)>0 else "Жоқ"
+
+df['ең әлсіз пән'] = df.apply(weak, axis=1)
+
+# AI
+def ai(row):
+    if row['орташа балл'] < 50:
+        return f"{row['аты']} әлсіз, {row['ең әлсіз пән']} пәніне назар аудару керек."
+    elif row['орташа балл'] < 70:
+        return f"{row['аты']} орташа деңгейде."
+    else:
+        return f"{row['аты']} жақсы оқиды."
+
+df['AI'] = df.apply(ai, axis=1)
+
+# тапсырма
+def task(row):
+    return f"{row['ең әлсіз пән']} пәнінен қосымша жұмыс"
+
+df['тапсырма'] = df.apply(task, axis=1)
+
+df['хабар'] = df['аты'] + " - " + df['AI']
+
+# ML
+X = df[subjects+['қатысу']]
+y = df['қауіп']
+model = RandomForestClassifier()
+model.fit(X,y)
+
+# -------------------------------
+# DASHBOARD
+# -------------------------------
+if menu == "🏠 Dashboard":
+    col1,col2,col3 = st.columns(3)
+    col1.metric("Орташа", round(df['орташа балл'].mean(),2))
+    col2.metric("Қауіпті", df['қауіп'].sum())
+    col3.metric("Үздік", len(df[df['орташа балл']>80]))
+
+    st.dataframe(df)
+
+# -------------------------------
+# ANALYTICS
+# -------------------------------
+elif menu == "📊 Аналитика":
+
+    fig, ax = plt.subplots()
+    sns.barplot(x='аты', y='орташа балл', data=df, ax=ax)
     plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.savefig("chart1.png")
-    plt.close()
+    st.pyplot(fig)
 
-    # -------------------------------
-    # 📈 2. ПРОГРЕСС
-    # -------------------------------
-    plt.figure(figsize=(6,4))
-    plt.plot(["Өткен","Қазір"], [row['өткен'], row['орташа балл']], marker='o')
-    plt.title("Прогресс")
-    plt.tight_layout()
-    plt.savefig("chart2.png")
-    plt.close()
-
-    # -------------------------------
-    # 📋 КЕСТЕ
-    # -------------------------------
-    table_data = [["Пән", "Балл"]]
-    for s in subjects:
-        table_data.append([s, str(row[s])])
-
-    # ✅ Кестені дұрыс құру (бұл жерде қате жоқ)
-    table = Table(table_data)
-
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.grey),
-        ('TEXTCOLOR',(0,0),(-1,0),colors.white),
-        ('ALIGN',(0,0),(-1,-1),'CENTER'),
-        ('GRID', (0,0), (-1,-1), 1, colors.black),
-        ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),  # Қазақша шрифт қосу
-    ]))
-
-    # -------------------------------
-    # 📄 PDF ҚҰРУ
-    # -------------------------------
-    doc = SimpleDocTemplate("super_report.pdf", pagesize=letter)
-    content = []
-
-    # Тақырып
-    content.append(Paragraph("🏫 ОҚУШЫ ЕСЕБІ", title))
-    content.append(Spacer(1,10))
-
-    # Негізгі инфо
-    content.append(Paragraph(f"Аты: {row['аты']}", normal))
-    content.append(Paragraph(f"Орташа балл: {round(row['орташа балл'],2)}", normal))
-    content.append(Paragraph(f"Әлсіз пән: {row['ең әлсіз пән']}", normal))
-    content.append(Paragraph(f"Қатысу: {row['қатысу']}%", normal))
-    content.append(Spacer(1,10))
-
-    # AI
-    content.append(Paragraph("🧠 ҰСЫНЫС", header))
-    content.append(Paragraph(row['AI'], normal))
-    content.append(Paragraph(f"Тапсырма: {row['тапсырма']}", normal))
-    content.append(Spacer(1,15))
-
-    # Кесте
-    content.append(Paragraph("📋 Бағалар", header))
-    content.append(table)
-    content.append(Spacer(1,15))
-
-    # График 1
-    content.append(Paragraph("📊 Пәндер графигі", header))
-    content.append(Image("chart1.png", width=400, height=250))
-    content.append(Spacer(1,15))
-
-    # График 2
-    content.append(Paragraph("📈 Прогресс", header))
-    content.append(Image("chart2.png", width=400, height=250))
-
-    doc.build(content)
+    fig2, ax2 = plt.subplots()
+    ax2.plot(df['аты'], df['орташа балл'], label="қазір")
+    ax2.plot(df['аты'], df['өткен'], label="өткен")
+    plt.xticks(rotation=45)
+    plt.legend()
+    st.pyplot(fig2)
 
 # -------------------------------
-# 🖥️ STREAMLIT ИНТЕРФЕЙСІ
+# PREDICTION
 # -------------------------------
+elif menu == "🧠 Болжау":
+    vals = [st.slider(s,0,100,60) for s in subjects]
+    att = st.slider("қатысу",0,100,70)
 
-# Деректерді жүктеу (мысал)
-# df = pd.read_csv("students.csv")  # нақты деректеріңізді жүктеңіз
+    if st.button("Болжау"):
+        pred = model.predict([vals+[att]])
+        st.success("Қауіпсіз" if pred[0]==0 else "Қауіпті")
 
-# Мысал деректер (тест үшін)
-data = {
-    'аты': ['Алима', 'Бауыржан', 'Дана'],
-    'математика': [85, 78, 92],
-    'физика': [80, 88, 85],
-    'информатика': [95, 82, 88],
-    'қазақ тілі': [90, 85, 91],
-    'ағылшын тілі': [88, 79, 86],
-    'өткен': [75, 80, 82],
-    'орташа балл': [87.6, 82.4, 88.4],
-    'ең әлсіз пән': ['физика', 'ағылшын тілі', 'физика'],
-    'қатысу': [95, 88, 92],
-    'AI': ['Математиканы жақсарту керек', 'Ағылшын тіліне көңіл бөліңіз', 'Жалпы жақсы нәтиже'],
-    'тапсырма': ['№15 есеп', 'Лексика жаттау', 'Қайталау']
-}
-df = pd.DataFrame(data)
+# -------------------------------
+# PROFILE
+# -------------------------------
+elif menu == "👤 Профиль":
+    s = st.selectbox("Оқушы", df['аты'])
+    st.dataframe(df[df['аты']==s])
 
-# Streamlit интерфейсі
-st.title("📚 Smart Gradebook - SUPER PDF")
+# -------------------------------
+# MESSAGE
+# -------------------------------
+elif menu == "📲 Хабар":
+    s = st.selectbox("Оқушы", df['аты'])
+    st.info(df[df['аты']==s]['хабар'].values[0])
 
-student = st.selectbox("Оқушы таңда", df['аты'])
-row = df[df['аты'] == student].iloc[0]
+# -------------------------------
+# PDF (SAFE VERSION)
+# -------------------------------
+elif menu == "🧾 PDF":
 
-if st.button("📄 SUPER PDF жасау"):
-    generate_super_pdf(row, df)
-    
-    with open("super_report.pdf", "rb") as f:
-        st.download_button(
-            "📥 Жүктеу",
-            f,
-            file_name=f"{row['аты']}_super_report.pdf",
-            mime="application/pdf"
-        )
+    s = st.selectbox("Оқушы", df['аты'])
+    row = df[df['аты']==s].iloc[0]
+
+    if st.button("PDF жасау"):
+
+        plt.figure()
+        scores = [row[s] for s in subjects]
+        plt.bar(subjects, scores)
+        plt.xticks(rotation=45)
+        plt.savefig("chart.png")
+        plt.close()
+
+        doc = SimpleDocTemplate("report.pdf", pagesize=letter)
+        styles = getSampleStyleSheet()
+
+        content = []
+
+        content.append(Paragraph("Student Report", styles["Title"]))
+        content.append(Spacer(1,10))
+        content.append(Paragraph(f"Name: {row['аты']}", styles["Normal"]))
+        content.append(Paragraph(f"Average: {row['орташа балл']}", styles["Normal"]))
+        content.append(Paragraph(f"Advice: {row['AI']}", styles["Normal"]))
+        content.append(Spacer(1,20))
+        content.append(Image("chart.png", width=400, height=250))
+
+        doc.build(content)
+
+        with open("report.pdf","rb") as f:
+            st.download_button("Жүктеу", f, file_name="report.pdf", mime="application/pdf")
+
+# -------------------------------
+# RATING
+# -------------------------------
+elif menu == "🏆 Рейтинг":
+    d = df.sort_values(by='орташа балл', ascending=False)
+
+    fig, ax = plt.subplots()
+    sns.barplot(x='аты', y='орташа балл', data=d, ax=ax)
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
