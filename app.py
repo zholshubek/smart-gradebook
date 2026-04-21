@@ -5,8 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 
-# PDF
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
 
@@ -38,7 +37,6 @@ if not st.session_state.login:
 
     st.stop()
 
-# Logout
 if st.sidebar.button("🚪 Шығу"):
     st.session_state.login = False
     st.rerun()
@@ -65,8 +63,8 @@ uploaded = st.sidebar.file_uploader("Excel жүктеу", type=["xlsx"])
 def load_data():
     if uploaded:
         df = pd.read_excel(uploaded)
-        req = ['аты','математика','физика','информатика','қазақ тілі','ағылшын тілі','қатысу']
-        if not all(c in df.columns for c in req):
+        required = ['аты','математика','физика','информатика','қазақ тілі','ағылшын тілі','қатысу']
+        if not all(c in df.columns for c in required):
             st.error("Excel формат қате!")
             st.stop()
         return df
@@ -88,8 +86,6 @@ subjects = ['математика','физика','информатика','қа
 # PROCESSING
 # -------------------------------
 df['орташа балл'] = df[subjects].mean(axis=1)
-
-# прогресс (қате болмау үшін)
 df['өткен'] = df['орташа балл'] - np.random.randint(0,10,len(df))
 
 df['қауіп'] = np.where((df['орташа балл'] < 60) | (df['қатысу'] < 60), 1, 0)
@@ -100,26 +96,21 @@ def weak(row):
 
 df['ең әлсіз пән'] = df.apply(weak, axis=1)
 
-# AI
 def ai(row):
     if row['орташа балл'] < 50:
-        return f"{row['аты']} әлсіз, {row['ең әлсіз пән']} пәніне назар аудару керек."
+        return f"{row['аты']} әлсіз. {row['ең әлсіз пән']} пәніне назар аудару керек."
     elif row['орташа балл'] < 70:
         return f"{row['аты']} орташа деңгейде."
     else:
         return f"{row['аты']} жақсы оқиды."
 
 df['AI'] = df.apply(ai, axis=1)
-
-# тапсырма
-def task(row):
-    return f"{row['ең әлсіз пән']} пәнінен қосымша жұмыс"
-
-df['тапсырма'] = df.apply(task, axis=1)
-
+df['тапсырма'] = df['ең әлсіз пән'] + " бойынша қосымша жұмыс"
 df['хабар'] = df['аты'] + " - " + df['AI']
 
-# ML
+# -------------------------------
+# ML MODEL
+# -------------------------------
 X = df[subjects+['қатысу']]
 y = df['қауіп']
 model = RandomForestClassifier()
@@ -130,39 +121,61 @@ model.fit(X,y)
 # -------------------------------
 if menu == "🏠 Dashboard":
     col1,col2,col3 = st.columns(3)
-    col1.metric("Орташа", round(df['орташа балл'].mean(),2))
+    col1.metric("Орташа балл", round(df['орташа балл'].mean(),2))
     col2.metric("Қауіпті", df['қауіп'].sum())
     col3.metric("Үздік", len(df[df['орташа балл']>80]))
-
     st.dataframe(df)
 
 # -------------------------------
-# ANALYTICS
+# ANALYTICS (FULL)
 # -------------------------------
 elif menu == "📊 Аналитика":
 
-    fig, ax = plt.subplots()
-    sns.barplot(x='аты', y='орташа балл', data=df, ax=ax)
+    st.title("📊 Аналитика")
+
+    col1, col2 = st.columns(2)
+
+    fig1, ax1 = plt.subplots()
+    sns.barplot(x='аты', y='орташа балл', data=df, ax=ax1)
     plt.xticks(rotation=45)
-    st.pyplot(fig)
+    col1.pyplot(fig1)
 
     fig2, ax2 = plt.subplots()
-    ax2.plot(df['аты'], df['орташа балл'], label="қазір")
-    ax2.plot(df['аты'], df['өткен'], label="өткен")
-    plt.xticks(rotation=45)
+    sns.scatterplot(x='қатысу', y='орташа балл', hue='қауіп', data=df, ax=ax2)
+    col2.pyplot(fig2)
+
+    fig3, ax3 = plt.subplots()
+    sns.heatmap(df[subjects].corr(), annot=True, ax=ax3)
+    st.pyplot(fig3)
+
+    fig4, ax4 = plt.subplots()
+    ax4.plot(df['аты'], df['орташа балл'], label="Қазір")
+    ax4.plot(df['аты'], df['өткен'], label="Өткен")
     plt.legend()
-    st.pyplot(fig2)
+    plt.xticks(rotation=45)
+    st.pyplot(fig4)
 
 # -------------------------------
-# PREDICTION
+# PREDICTION (UPGRADED)
 # -------------------------------
 elif menu == "🧠 Болжау":
+
+    st.title("🧠 Болжау жүйесі")
+
     vals = [st.slider(s,0,100,60) for s in subjects]
-    att = st.slider("қатысу",0,100,70)
+    att = st.slider("Қатысу",0,100,70)
 
     if st.button("Болжау"):
-        pred = model.predict([vals+[att]])
-        st.success("Қауіпсіз" if pred[0]==0 else "Қауіпті")
+
+        pred = model.predict([vals+[att]])[0]
+        prob = model.predict_proba([vals+[att]])[0]
+
+        st.metric("Қауіп ықтималдығы", f"{round(prob[1]*100,1)}%")
+
+        if pred == 1:
+            st.error("⚠️ Қауіпті")
+        else:
+            st.success("✅ Қауіпсіз")
 
 # -------------------------------
 # PROFILE
@@ -172,14 +185,27 @@ elif menu == "👤 Профиль":
     st.dataframe(df[df['аты']==s])
 
 # -------------------------------
-# MESSAGE
+# MESSAGE (UPGRADED)
 # -------------------------------
 elif menu == "📲 Хабар":
+
+    st.title("📲 Ата-анаға хабар")
+
     s = st.selectbox("Оқушы", df['аты'])
-    st.info(df[df['аты']==s]['хабар'].values[0])
+    row = df[df['аты']==s].iloc[0]
+
+    message = f"""
+Аты: {row['аты']}
+Орташа: {row['орташа балл']}
+Әлсіз пән: {row['ең әлсіз пән']}
+Ұсыныс: {row['AI']}
+"""
+
+    st.text_area("Хабар", message)
+    st.download_button("TXT жүктеу", message, file_name="message.txt")
 
 # -------------------------------
-# PDF (SAFE VERSION)
+# PDF (SAFE)
 # -------------------------------
 elif menu == "🧾 PDF":
 
@@ -199,27 +225,27 @@ elif menu == "🧾 PDF":
         styles = getSampleStyleSheet()
 
         content = []
-
         content.append(Paragraph("Student Report", styles["Title"]))
-        content.append(Spacer(1,10))
         content.append(Paragraph(f"Name: {row['аты']}", styles["Normal"]))
         content.append(Paragraph(f"Average: {row['орташа балл']}", styles["Normal"]))
-        content.append(Paragraph(f"Advice: {row['AI']}", styles["Normal"]))
-        content.append(Spacer(1,20))
         content.append(Image("chart.png", width=400, height=250))
 
         doc.build(content)
 
         with open("report.pdf","rb") as f:
-            st.download_button("Жүктеу", f, file_name="report.pdf", mime="application/pdf")
+            st.download_button("Жүктеу", f, file_name="report.pdf")
 
 # -------------------------------
-# RATING
+# RATING (UPGRADED)
 # -------------------------------
 elif menu == "🏆 Рейтинг":
-    d = df.sort_values(by='орташа балл', ascending=False)
+
+    df_sorted = df.sort_values(by='орташа балл', ascending=False).reset_index(drop=True)
+    df_sorted['Рейтинг'] = df_sorted.index + 1
+
+    st.dataframe(df_sorted[['Рейтинг','аты','орташа балл']])
 
     fig, ax = plt.subplots()
-    sns.barplot(x='аты', y='орташа балл', data=d, ax=ax)
+    sns.barplot(x='аты', y='орташа балл', data=df_sorted, ax=ax)
     plt.xticks(rotation=45)
     st.pyplot(fig)
