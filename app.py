@@ -135,8 +135,50 @@ model.fit(X,y)
 # DASHBOARD
 # -------------------------------
 if menu == "Dashboard":
+
     st.title("📊 Dashboard")
-    st.dataframe(df)
+
+    # -------------------------------
+    # 🔍 ФИЛЬТР
+    # -------------------------------
+    selected_student = st.selectbox("Оқушы таңда", ["Барлығы"] + list(df['аты']))
+
+    if selected_student != "Барлығы":
+        filtered_df = df[df['аты'] == selected_student]
+    else:
+        filtered_df = df
+
+    # -------------------------------
+    # 📊 ГРАФИК
+    # -------------------------------
+    st.subheader("📊 Орташа балл графигі")
+
+    fig, ax = plt.subplots(figsize=(10,4))
+    sns.barplot(x='аты', y='орташа балл', data=filtered_df, ax=ax)
+
+    plt.xticks(rotation=45)
+
+    # мән жазу
+    for i, v in enumerate(filtered_df['орташа балл']):
+        ax.text(i, v+1, str(round(v,1)), ha='center')
+
+    st.pyplot(fig)
+
+    # -------------------------------
+    # 🎨 ТҮСПЕН TABLE
+    # -------------------------------
+    st.subheader("📋 Оқушылар кестесі")
+
+    def highlight(row):
+        if row['орташа балл'] >= 80:
+            return ['background-color: #16a34a; color:white']*len(row)
+        elif row['орташа балл'] < 50:
+            return ['background-color: #dc2626; color:white']*len(row)
+        else:
+            return ['']*len(row)
+
+    st.dataframe(filtered_df.style.apply(highlight, axis=1))
+
 
 # -------------------------------
 # ANALYTICS
