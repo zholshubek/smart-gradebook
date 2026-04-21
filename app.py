@@ -21,7 +21,7 @@ st.set_page_config(page_title="Smart School Portal", layout="wide")
 # -------------------------------
 # FONT (Times New Roman)
 # -------------------------------
-pdfmetrics.registerFont(TTFont('TNR', 'TimesNewRoman.ttf'))
+pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
 # -------------------------------
 # LOGIN
@@ -507,20 +507,18 @@ elif menu == "🧾 PDF":
 
         # Times New Roman стиль
         normal = ParagraphStyle(
-            'TNR_Normal',
-            parent=styles['Normal'],
-            fontName='TNR',
-            fontSize=12,
-            leading=14
-        )
+    'Normal_DejaVu',
+    parent=styles['Normal'],
+    fontName='DejaVu',
+    fontSize=12
+)
 
-        title = ParagraphStyle(
-            'TNR_Title',
-            parent=styles['Normal'],
-            fontName='TNR',
-            fontSize=18,
-            spaceAfter=10
-        )
+title = ParagraphStyle(
+    'Title_DejaVu',
+    parent=styles['Normal'],
+    fontName='DejaVu',
+    fontSize=16
+)
 
         content = []
 
