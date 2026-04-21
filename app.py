@@ -214,34 +214,67 @@ elif menu == "Хабар":
 # -------------------------------
 # PDF
 # -------------------------------
+import base64
+
 elif menu == "PDF":
 
-    st.title("🧾 PDF")
+    st.title("🧾 PDF есеп (Preview)")
 
     s = st.selectbox("Оқушы", df['аты'])
     row = df[df['аты']==s].iloc[0]
 
-    if st.button("PDF жасау"):
+    if st.button("📄 PDF жасау"):
 
+        # 📊 график
         plt.figure()
         scores = [row[s] for s in subjects]
         plt.bar(subjects, scores)
         plt.xticks(rotation=45)
+        plt.tight_layout()
         plt.savefig("chart.png")
         plt.close()
 
-        doc = SimpleDocTemplate("report.pdf", pagesize=letter)
+        # 📄 PDF жасау
+        doc = SimpleDocTemplate("report.pdf")
         styles = getSampleStyleSheet()
 
         content = []
         content.append(Paragraph("Student Report", styles["Title"]))
         content.append(Paragraph(f"Name: {row['аты']}", styles["Normal"]))
+        content.append(Paragraph(f"Average: {row['орташа балл']}", styles["Normal"]))
         content.append(Image("chart.png", width=400, height=250))
 
         doc.build(content)
 
-        with open("report.pdf","rb") as f:
-            st.download_button("Жүктеу", f)
+        # -------------------------------
+        # 📥 ЖҮКТЕУ
+        # -------------------------------
+        with open("report.pdf", "rb") as f:
+            pdf_bytes = f.read()
+
+        st.download_button(
+            label="📥 PDF жүктеу",
+            data=pdf_bytes,
+            file_name=f"{row['аты']}_report.pdf",
+            mime="application/pdf"
+        )
+
+        # -------------------------------
+        # 🌐 PREVIEW (браузерде көрсету)
+        # -------------------------------
+        base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+
+        pdf_display = f'''
+        <iframe 
+            src="data:application/pdf;base64,{base64_pdf}" 
+            width="100%" 
+            height="600" 
+            type="application/pdf">
+        </iframe>
+        '''
+
+        st.markdown("### 📄 PDF алдын ала көру")
+        st.markdown(pdf_display, unsafe_allow_html=True)
 
 # -------------------------------
 # RATING
