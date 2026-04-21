@@ -105,6 +105,29 @@ def ai(row):
         return f"{row['аты']} жақсы оқиды."
 
 df['AI'] = df.apply(ai, axis=1)
+# -------------------------------
+# SMART ТАПСЫРМА (міндетті)
+# -------------------------------
+def tasks(row):
+    subject = row['ең әлсіз пән']
+
+    if subject == "Жоқ":
+        return "Қосымша тапсырма қажет емес"
+    
+    if subject == "математика":
+        return "10 есеп шығару"
+    elif subject == "физика":
+        return "5 есеп + формула қайталау"
+    elif subject == "информатика":
+        return "Python практика"
+    elif subject == "қазақ тілі":
+        return "1 мәтін жазу"
+    elif subject == "ағылшын тілі":
+        return "20 сөз жаттау"
+    else:
+        return "Қайталау"
+
+df['тапсырма'] = df.apply(tasks, axis=1)
 df['тапсырма'] = df['ең әлсіз пән'] + " бойынша қосымша жұмыс"
 df['хабар'] = df['аты'] + " - " + df['AI']
 
@@ -160,22 +183,100 @@ elif menu == "📊 Аналитика":
 # -------------------------------
 elif menu == "🧠 Болжау":
 
-    st.title("🧠 Болжау жүйесі")
+    st.title("🧠 Ақылды болжау жүйесі")
 
-    vals = [st.slider(s,0,100,60) for s in subjects]
-    att = st.slider("Қатысу",0,100,70)
+    st.markdown("### 📊 Оқушы мәліметін енгізіңіз")
 
-    if st.button("Болжау"):
+    col1, col2 = st.columns(2)
 
-        pred = model.predict([vals+[att]])[0]
-        prob = model.predict_proba([vals+[att]])[0]
+    with col1:
+        math = st.slider("📘 Математика", 0, 100, 60)
+        physics = st.slider("🔬 Физика", 0, 100, 60)
+        info = st.slider("💻 Информатика", 0, 100, 60)
 
-        st.metric("Қауіп ықтималдығы", f"{round(prob[1]*100,1)}%")
+    with col2:
+        kaz = st.slider("📖 Қазақ тілі", 0, 100, 60)
+        eng = st.slider("🌍 Ағылшын тілі", 0, 100, 60)
+        att = st.slider("📅 Қатысу", 0, 100, 70)
+
+    input_data = [math, physics, info, kaz, eng, att]
+
+    if st.button("🔍 Болжау"):
+
+        # 🔮 Болжау
+        pred = model.predict([input_data])[0]
+
+        # 📊 Ықтималдық
+        prob = model.predict_proba([input_data])[0]
+
+        st.divider()
+
+        # -------------------------------
+        # 🎯 НӘТИЖЕ
+        # -------------------------------
+        if pred == 1:
+            st.error("⚠️ Оқушы қауіп тобында")
+        else:
+            st.success("✅ Оқушы қауіпсіз")
+
+        st.metric("📊 Қауіп ықтималдығы", f"{round(prob[1]*100,1)} %")
+
+        st.divider()
+
+        # -------------------------------
+        # 🧠 AI ТҮСІНДІРУ
+        # -------------------------------
+        st.subheader("🧠 AI түсіндірме")
+
+        weak_subject = subjects[np.argmin(input_data[:5])]
 
         if pred == 1:
-            st.error("⚠️ Қауіпті")
+            st.warning(f"""
+Бұл оқушының нәтижесі төмен болуы мүмкін.
+
+Негізгі әлсіз пән: **{weak_subject}**
+
+Себептері:
+- Балл төмен
+- Қатысу жеткіліксіз
+
+Ұсыныс:
+- Қосымша сабақ
+- Күнделікті практика
+""")
         else:
-            st.success("✅ Қауіпсіз")
+            st.info(f"""
+Оқушының жағдайы жақсы.
+
+Күшті жақтары:
+- Жоғары орташа балл
+- Қатысу жақсы
+
+Ұсыныс:
+- Нәтижені сақтау
+- Әлсіз пәндерді аздап қайталау
+""")
+
+        st.divider()
+
+        # -------------------------------
+        # 📊 ВИЗУАЛИЗАЦИЯ
+        # -------------------------------
+        st.subheader("📊 Пәндер бойынша анализ")
+
+        fig, ax = plt.subplots()
+
+        bars = ax.bar(subjects, input_data[:5])
+
+        # түстер
+        colors = ['green' if x>70 else 'orange' if x>50 else 'red' for x in input_data[:5]]
+        for bar, color in zip(bars, colors):
+            bar.set_color(color)
+
+        plt.xticks(rotation=45)
+        ax.set_title("Пәндер деңгейі")
+
+        st.pyplot(fig)
 
 # -------------------------------
 # PROFILE
@@ -189,52 +290,193 @@ elif menu == "👤 Профиль":
 # -------------------------------
 elif menu == "📲 Хабар":
 
-    st.title("📲 Ата-анаға хабар")
+    st.title("📲 Ата-анаға хабарлама жүйесі")
 
-    s = st.selectbox("Оқушы", df['аты'])
-    row = df[df['аты']==s].iloc[0]
+    # -------------------------------
+    # 👤 ОҚУШЫ ТАҢДАУ
+    # -------------------------------
+    student = st.selectbox("Оқушы таңдаңыз", df['аты'])
+    row = df[df['аты'] == student].iloc[0]
 
+    st.divider()
+
+    # -------------------------------
+    # 📋 ХАБАР МӘТІНІ (AI + DATA)
+    # -------------------------------
     message = f"""
-Аты: {row['аты']}
-Орташа: {row['орташа балл']}
-Әлсіз пән: {row['ең әлсіз пән']}
-Ұсыныс: {row['AI']}
+Құрметті ата-ана!
+
+Сіздің балаңыз: {row['аты']}
+
+📊 Орташа балл: {round(row['орташа балл'],2)}
+📉 Әлсіз пән: {row['ең әлсіз пән']}
+
+🧠 Ұсыныс:
+{row['AI']}
+
+📚 Тапсырма:
+{row['тапсырма']}
+
+📅 Қатысу: {row['қатысу']}%
+
+Құрметпен,
+Мектеп әкімшілігі
 """
 
-    st.text_area("Хабар", message)
-    st.download_button("TXT жүктеу", message, file_name="message.txt")
+    st.subheader("📄 Дайын хабарлама")
+    st.text_area("Хабар мәтіні", message, height=250)
+
+    st.divider()
+
+    # -------------------------------
+    # 📋 QUICK STATUS
+    # -------------------------------
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Балл", round(row['орташа балл'],2))
+    col2.metric("Қатысу", f"{row['қатысу']}%")
+    col3.metric("Қауіп", "Иә" if row['орташа балл'] < 60 else "Жоқ")
+
+    st.divider()
+
+    # -------------------------------
+    # 📥 КӨШІРУ / ЖҮКТЕУ
+    # -------------------------------
+    st.subheader("📥 Экспорт")
+
+    st.download_button(
+        label="📄 TXT ретінде жүктеу",
+        data=message,
+        file_name=f"{row['аты']}_message.txt"
+    )
+
+    st.code(message)
+
+    st.divider()
+
+    # -------------------------------
+    # 🎯 AI ҰСЫНЫС
+    # -------------------------------
+    st.subheader("🧠 Қосымша кеңес")
+
+    if row['орташа балл'] < 50:
+        st.error("⚠️ Жедел араласу қажет (ата-ана + мұғалім)")
+    elif row['орташа балл'] < 70:
+        st.warning("📘 Қосымша дайындық ұсынылады")
+    else:
+        st.success("✅ Жақсы нәтиже")
 
 # -------------------------------
-# PDF (SAFE)
+# -------------------------------
+# 🧾 PDF (PRO VERSION)
 # -------------------------------
 elif menu == "🧾 PDF":
 
-    s = st.selectbox("Оқушы", df['аты'])
-    row = df[df['аты']==s].iloc[0]
+    student = st.selectbox("Оқушы таңда", df['аты'])
+    row = df[df['аты']==student].iloc[0]
 
-    if st.button("PDF жасау"):
+    if st.button("📄 PDF жасау"):
 
-        plt.figure()
+        # -------------------------------
+        # 📊 ГРАФИК ЖАСАУ
+        # -------------------------------
+        chart_path = "chart.png"
+
+        plt.figure(figsize=(6,4))
         scores = [row[s] for s in subjects]
-        plt.bar(subjects, scores)
+        plt.bar(subjects, scores, color='skyblue')
         plt.xticks(rotation=45)
-        plt.savefig("chart.png")
+        plt.title("Пәндер бойынша балл")
+        plt.tight_layout()
+        plt.savefig(chart_path)
         plt.close()
 
+        # -------------------------------
+        # 📄 PDF ҚҰРУ
+        # -------------------------------
         doc = SimpleDocTemplate("report.pdf", pagesize=letter)
         styles = getSampleStyleSheet()
 
-        content = []
-        content.append(Paragraph("Student Report", styles["Title"]))
-        content.append(Paragraph(f"Name: {row['аты']}", styles["Normal"]))
-        content.append(Paragraph(f"Average: {row['орташа балл']}", styles["Normal"]))
-        content.append(Image("chart.png", width=400, height=250))
+        # Times New Roman стиль
+        normal = ParagraphStyle(
+            'TNR_Normal',
+            parent=styles['Normal'],
+            fontName='TNR',
+            fontSize=12,
+            leading=14
+        )
 
+        title = ParagraphStyle(
+            'TNR_Title',
+            parent=styles['Normal'],
+            fontName='TNR',
+            fontSize=18,
+            spaceAfter=10
+        )
+
+        content = []
+
+        # -------------------------------
+        # 🏫 ТАҚЫРЫП
+        # -------------------------------
+        content.append(Paragraph("ОҚУШЫ ЕСЕБІ", title))
+        content.append(Spacer(1,10))
+
+        # -------------------------------
+        # 👤 НЕГІЗГІ МӘЛІМЕТ
+        # -------------------------------
+        content.append(Paragraph(f"Аты: {row['аты']}", normal))
+        content.append(Paragraph(f"Орташа балл: {round(row['орташа балл'],2)}", normal))
+        content.append(Paragraph(f"Әлсіз пән: {row['ең әлсіз пән']}", normal))
+        content.append(Paragraph(f"Қатысу: {row['қатысу']}%", normal))
+
+        content.append(Spacer(1,12))
+
+        # -------------------------------
+        # 🧠 AI ҰСЫНЫС
+        # -------------------------------
+        content.append(Paragraph("ҰСЫНЫС:", title))
+        content.append(Paragraph(row['AI'], normal))
+        content.append(Paragraph(f"Тапсырма: {row['тапсырма']}", normal))
+
+        content.append(Spacer(1,15))
+
+        # -------------------------------
+        # 📊 КЕСТЕ
+        # -------------------------------
+        table_data = [["Пән", "Балл"]]
+
+        for s in subjects:
+            table_data.append([s, str(row[s])])
+
+        table = Table(table_data)
+
+        content.append(Paragraph("Бағалар:", title))
+        content.append(table)
+
+        content.append(Spacer(1,15))
+
+        # -------------------------------
+        # 📈 ГРАФИК ҚОСУ
+        # -------------------------------
+        content.append(Paragraph("График:", title))
+        content.append(Image(chart_path, width=400, height=250))
+
+        # -------------------------------
+        # PDF ҚҰРУ
+        # -------------------------------
         doc.build(content)
 
+        # -------------------------------
+        # 📥 ЖҮКТЕУ
+        # -------------------------------
         with open("report.pdf","rb") as f:
-            st.download_button("Жүктеу", f, file_name="report.pdf")
-
+            st.download_button(
+                "📥 PDF жүктеу",
+                f,
+                file_name=f"{row['аты']}_report.pdf",
+                mime="application/pdf"
+            )
 # -------------------------------
 # RATING (UPGRADED)
 # -------------------------------
