@@ -332,22 +332,135 @@ elif menu == "Аналитика":
 # -------------------------------
 elif menu == "Болжау":
 
-    st.title("🧠 Болжау")
+    st.title("🧠 Ақылды болжау жүйесі")
 
-    vals = [st.slider(s,0,100,60) for s in subjects]
-    att = st.slider("Қатысу",0,100,70)
+    st.markdown("### 📊 Оқушы мәліметін енгізіңіз")
 
-    if st.button("Болжау"):
-        pred = model.predict([vals+[att]])[0]
-        st.success("Қауіпсіз" if pred==0 else "Қауіпті")
+    col1, col2 = st.columns(2)
 
-# -------------------------------
-# PROFILE
-# -------------------------------
-elif menu == "Профиль":
-    st.title("👤 Профиль")
-    s = st.selectbox("Оқушы", df['аты'])
-    st.dataframe(df[df['аты']==s])
+    with col1:
+        math = st.slider("📘 Математика", 0, 100, 60)
+        physics = st.slider("🔬 Физика", 0, 100, 60)
+        info = st.slider("💻 Информатика", 0, 100, 60)
+
+    with col2:
+        kaz = st.slider("📖 Қазақ тілі", 0, 100, 60)
+        eng = st.slider("🌍 Ағылшын тілі", 0, 100, 60)
+        att = st.slider("📅 Қатысу", 0, 100, 70)
+
+    input_data = [math, physics, info, kaz, eng, att]
+
+    st.divider()
+
+    # -------------------------------
+    # 📊 ВИЗУАЛ
+    # -------------------------------
+    st.subheader("📊 Қазіргі деңгей")
+
+    fig, ax = plt.subplots()
+    bars = ax.bar(subjects, input_data[:5])
+
+    colors = ['green' if x>70 else 'orange' if x>50 else 'red' for x in input_data[:5]]
+    for bar, color in zip(bars, colors):
+        bar.set_color(color)
+
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
+
+    st.divider()
+
+    # -------------------------------
+    # 🔍 НЕГІЗГІ БОЛЖАУ
+    # -------------------------------
+    if st.button("🔍 Болжау"):
+
+        pred = model.predict([input_data])[0]
+        prob = model.predict_proba([input_data])[0]
+
+        st.subheader("🎯 Нәтиже")
+
+        if pred == 1:
+            st.error("⚠️ Қауіпті")
+        else:
+            st.success("✅ Қауіпсіз")
+
+        st.metric("Қауіп ықтималдығы", f"{round(prob[1]*100,1)} %")
+
+        # -------------------------------
+        # 🤖 АВТО ҰСЫНЫС
+        # -------------------------------
+        st.subheader("🤖 Автоматты ұсыныс")
+
+        weakest = subjects[np.argmin(input_data[:5])]
+        avg = np.mean(input_data[:5])
+
+        if avg < 50:
+            st.error(f"""
+🔴 Негізгі проблема: {weakest}
+
+Ұсыныс:
+- Күнделікті оқу жоспары
+- Жеке мұғалім
+- Ата-анамен байланыс
+""")
+
+        elif avg < 70:
+            st.warning(f"""
+🟡 Әлсіз пән: {weakest}
+
+Ұсыныс:
+- Аптасына 2 рет қосымша сабақ
+- Практика
+""")
+
+        else:
+            st.success("""
+🟢 Жақсы деңгей
+
+Ұсыныс:
+- Қосымша олимпиада
+- Тереңдетілген оқу
+""")
+
+    st.divider()
+
+    # -------------------------------
+    # 📈 СИМУЛЯЦИЯ
+    # -------------------------------
+    st.subheader("📈 Егер балл өссе не болады?")
+
+    increase = st.slider("📊 Балл өсімі (%)", 0, 30, 10)
+
+    new_scores = [x + (x * increase / 100) for x in input_data[:5]]
+
+    sim_input = new_scores + [att]
+
+    sim_pred = model.predict([sim_input])[0]
+    sim_prob = model.predict_proba([sim_input])[0]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write("🔵 Қазіргі жағдай")
+        current_prob = model.predict_proba([input_data])[0]
+        st.metric("Қауіп", f"{round(current_prob[1]*100,1)}%")
+
+    with col2:
+        st.write("🟢 Жаңа жағдай")
+        st.metric("Қауіп", f"{round(sim_prob[1]*100,1)}%")
+
+    # -------------------------------
+    # 📊 СИМУЛЯЦИЯ ГРАФИК
+    # -------------------------------
+    fig2, ax2 = plt.subplots()
+
+    ax2.plot(subjects, input_data[:5], label="Қазіргі", marker='o')
+    ax2.plot(subjects, new_scores, label="Жаңа", marker='o')
+
+    plt.xticks(rotation=45)
+    plt.legend()
+
+    st.pyplot(fig2)
 
 # -------------------------------
 # MESSAGE
