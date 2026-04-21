@@ -235,7 +235,7 @@ elif menu == "PDF":
     if st.button("📄 PDF жасау"):
 
         # -------------------------------
-        # 📊 1. ПӘН ГРАФИК
+        # 📊 ГРАФИК 1
         # -------------------------------
         chart1 = "chart1.png"
         scores = [row[s] for s in subjects]
@@ -243,36 +243,20 @@ elif menu == "PDF":
         plt.figure(figsize=(6,4))
         plt.bar(subjects, scores, color='#4CAF50')
         plt.xticks(rotation=45)
-        plt.title("Пәндер бойынша балл")
         plt.tight_layout()
         plt.savefig(chart1)
         plt.close()
 
         # -------------------------------
-        # 📈 2. ПРОГРЕСС
+        # 📈 ПРОГРЕСС
         # -------------------------------
         chart2 = "chart2.png"
 
         plt.figure(figsize=(6,4))
         plt.plot(["Өткен","Қазір"], [row['өткен'], row['орташа балл']], marker='o')
-        plt.title("Прогресс")
         plt.grid()
         plt.tight_layout()
         plt.savefig(chart2)
-        plt.close()
-
-        # -------------------------------
-        # 📊 3. СЫНЫППЕН САЛЫСТЫРУ
-        # -------------------------------
-        chart3 = "chart3.png"
-
-        plt.figure(figsize=(6,4))
-        plt.bar(df['аты'], df['орташа балл'], color='skyblue')
-        plt.axhline(df['орташа балл'].mean(), color='red', linestyle='--')
-        plt.xticks(rotation=45)
-        plt.title("Сыныппен салыстыру")
-        plt.tight_layout()
-        plt.savefig(chart3)
         plt.close()
 
         # -------------------------------
@@ -311,38 +295,30 @@ elif menu == "PDF":
         # INFO
         content.append(Paragraph(f"Аты: {row['аты']}", normal))
         content.append(Paragraph(f"Орташа балл: {round(row['орташа балл'],2)}", normal))
-        content.append(Paragraph(f"Әлсіз пән: {row['ең әлсіз пән']}", normal))
-        content.append(Spacer(1,15))
+        content.append(Spacer(1,10))
 
         # -------------------------------
-# 📊 KPI БЛОК
-# -------------------------------
+        # 📊 KPI (ДҰРЫС ОРЫНДА!)
+        # -------------------------------
+        avg_score = round(df['орташа балл'].mean(), 2)
+        danger_count = df['қауіп'].sum()
 
-avg_score = round(df['орташа балл'].mean(), 2)
-danger_count = df['қауіп'].sum()
-top_count = len(df[df['орташа балл'] > 80])
-weak_subject = df['ең әлсіз пән'].value_counts().idxmax()
+        kpi_data = [
+            ["Көрсеткіш", "Мәні"],
+            ["Орташа балл", str(avg_score)],
+            ["Қауіпті", str(danger_count)]
+        ]
 
-kpi_data = [
-    ["Көрсеткіш", "Мәні"],
-    ["Орташа балл", str(avg_score)],
-    ["Қауіпті оқушылар", str(danger_count)],
-    ["Үздік оқушылар", str(top_count)],
-    ["Ең әлсіз пән", weak_subject]
-]
+        kpi_table = Table(kpi_data)
+        kpi_table.setStyle(TableStyle([
+            ('BACKGROUND',(0,0),(-1,0),colors.green),
+            ('TEXTCOLOR',(0,0),(-1,0),colors.white),
+            ('GRID',(0,0),(-1,-1),1,colors.black)
+        ]))
 
-kpi_table = Table(kpi_data)
-
-kpi_table.setStyle(TableStyle([
-    ('BACKGROUND', (0,0), (-1,0), colors.green),
-    ('TEXTCOLOR',(0,0),(-1,0),colors.white),
-    ('GRID',(0,0),(-1,-1),1,colors.black),
-    ('ALIGN',(0,0),(-1,-1),'CENTER')
-]))
-
-content.append(Paragraph("📊 Жалпы көрсеткіштер", header))
-content.append(kpi_table)
-content.append(Spacer(1,20))
+        content.append(Paragraph("📊 KPI", header))
+        content.append(kpi_table)
+        content.append(Spacer(1,15))
 
         # AI
         content.append(Paragraph("🧠 Ұсыныс", header))
@@ -363,21 +339,16 @@ content.append(Spacer(1,20))
 
         content.append(Paragraph("📋 Бағалар", header))
         content.append(table)
-        content.append(Spacer(1,20))
+        content.append(Spacer(1,15))
 
         # CHARTS
-        content.append(Paragraph("📊 Пәндер графигі", header))
+        content.append(Paragraph("📊 Пәндер", header))
         content.append(Image(chart1, width=400, height=250))
 
         content.append(Spacer(1,15))
 
         content.append(Paragraph("📈 Прогресс", header))
         content.append(Image(chart2, width=400, height=250))
-
-        content.append(Spacer(1,15))
-
-        content.append(Paragraph("📊 Сыныппен салыстыру", header))
-        content.append(Image(chart3, width=400, height=250))
 
         doc.build(content)
 
