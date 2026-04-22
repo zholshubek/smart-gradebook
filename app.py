@@ -209,10 +209,13 @@ if menu == "🏠 Журнал":
 # ===============================
 # 2. АНАЛИТИКА
 # ===============================
+# ===============================
+# 2. АНАЛИТИКА (толық түзетілген)
+# ===============================
 elif menu == "📊 Аналитика":
     st.title("📊 Аналитика панелі")
     
-    # KPI блоктар
+    # KPI блоктар (өзгеріссіз)
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -318,30 +321,48 @@ elif menu == "📊 Аналитика":
         bottom3 = df.nsmallest(3, 'орташа балл')[['аты', 'орташа балл']]
         st.dataframe(bottom3, use_container_width=True)
     
-    # ===== МОДЕЛЬДЕРДІҢ ДӘЛДІГІ =====
+    # ===== МОДЕЛЬДЕРДІҢ ДӘЛДІГІ (ТҮЗЕТІЛГЕН) =====
     with st.expander("🤖 ML Модельдерінің сапасы"):
         st.subheader("Модельдерді салыстыру")
         
-        # Кросс-валидация (қарапайым)
         from sklearn.model_selection import cross_val_score
         
         model_comparison = []
         for name, mdl in trained_models.items():
-            # 5-fold кросс-валидация
-            scores = cross_val_score(mdl, X, y, cv=min(5, len(X)-1))
-            model_comparison.append({
-                "Модель": name,
-                "Орташа дәлдік": f"{scores.mean()*100:.1f}%",
-                "Мин/Макс": f"{scores.min()*100:.1f}% / {scores.max()*100:.1f}%",
-                "Тұрақтылық": "🔴" if scores.std() > 0.15 else "🟡" if scores.std() > 0.08 else "🟢"
-            })
+            try:
+                cv_folds = min(3, len(X) - 1)
+                scores = cross_val_score(mdl, X, y, cv=cv_folds)
+                model_comparison.append({
+                    "Модель": name,
+                    "Орташа дәлдік": f"{scores.mean()*100:.1f}%",
+                    "Мин/Макс": f"{scores.min()*100:.1f}% / {scores.max()*100:.1f}%",
+                    "Тұрақтылық": "🔴" if scores.std() > 0.15 else "🟡" if scores.std() > 0.08 else "🟢"
+                })
+            except Exception as e:
+                model_comparison.append({
+                    "Модель": name,
+                    "Орташа дәлдік": "❌ Есептеу мүмкін емес",
+                    "Мин/Макс": "-",
+                    "Тұрақтылық": "⚪"
+                })
         
         st.dataframe(pd.DataFrame(model_comparison), use_container_width=True)
         
-        # Ең жақсы модельді ұсыну
-        best_model = max(trained_models.keys(), 
-                         key=lambda x: cross_val_score(trained_models[x], X, y, cv=min(5, len(X)-1)).mean())
-        st.success(f"🏆 **Ұсынылатын модель:** {best_model} - ең жоғары дәлдік көрсетті!")
+        best_model = None
+        best_score = -1
+        for name, mdl in trained_models.items():
+            try:
+                score = cross_val_score(mdl, X, y, cv=min(3, len(X)-1)).mean()
+                if score > best_score:
+                    best_score = score
+                    best_model = name
+            except:
+                pass
+        
+        if best_model:
+            st.success(f"🏆 **Ұсынылатын модель:** {best_model} - ең жоғары дәлдік көрсетті!")
+        else:
+            st.info("ℹ️ Модельдерді салыстыру мүмкін болмады. Деректер саны жеткіліксіз.")
 
 # ===============================
 # 3. БОЛЖАУ
