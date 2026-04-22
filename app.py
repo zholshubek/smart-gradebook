@@ -479,18 +479,29 @@ elif menu == "📚 Кітапхана":
     if filter_subj != "Барлығы":
         filtered = [b for b in filtered if b["Пәні"] == filter_subj]
 
-    # ---------- КІТАПТАРДЫ КӨРСЕТУ ----------
+    # ---------- КІТАПТАРДЫ КӨРСЕТУ (ЖОЮ БАТЫРМАСЫМЕН) ----------
     if not filtered:
         st.info("Бұл пән бойынша әлі кітап жоқ.")
     else:
-        for book in filtered:
+        for idx, book in enumerate(filtered):
             with st.container():
                 st.markdown(f"##### {book['Атауы']}")
-                col1, col2 = st.columns([3, 1])
+                col1, col2, col3 = st.columns([3, 1, 1])
                 with col1:
                     st.write(f"✍️ {book['Авторы']}  |  {book['Пәні']}  |  {book.get('Түрі', '📘 Оқулық')}")
                 with col2:
-                    st.link_button("📖 Оқу", book["Сілтеме"], use_container_width=True)
+                    st.link_button("📖 Оқу", book["Сілтеме"], use_container_width=True, key=f"read_{idx}_{book['Атауы']}")
+                # Жою батырмасы (тек admin/teacher үшін)
+                if st.session_state.role in ["admin", "teacher"]:
+                    with col3:
+                        if st.button("🗑 Жою", key=f"del_{idx}_{book['Атауы']}", use_container_width=True):
+                            # Кітапты тізімнен жою (нақты объектіні табу)
+                            for i, b in enumerate(st.session_state.library):
+                                if b['Атауы'] == book['Атауы'] and b['Авторы'] == book['Авторы']:
+                                    st.session_state.library.pop(i)
+                                    break
+                            st.success(f"«{book['Атауы']}» кітабы жойылды!")
+                            st.rerun()
                 st.divider()
 
     # ---------- ҚОЛМЕН КІТАП ҚОСУ (ТЕК ADMIN/TEACHER) ----------
@@ -521,9 +532,8 @@ elif menu == "📚 Кітапхана":
             st.markdown("""
             **Файл құрылымы:**
             - Қажетті бағандар: `Атауы`, `Авторы`, `Пәні`, `Сілтеме`
-            - Қосымша баған (міндетті емес): `Түрі` (Оқулық, Есептер жинағы, т.б.)
-            - Пәні мына мәндердің бірі болуы керек: математика, физика, информатика, қазақ тілі, ағылшын тілі
-            - Excel (.xlsx) немесе CSV (.csv) форматы қолданылады.
+            - Қосымша баған (міндетті емес): `Түрі`
+            - Пәні: математика, физика, информатика, қазақ тілі, ағылшын тілі
             """)
             uploaded_books = st.file_uploader("Excel/CSV файл таңдаңыз", type=["xlsx", "csv"], key="bulk_upload")
             if uploaded_books is not None:
@@ -537,24 +547,20 @@ elif menu == "📚 Кітапхана":
                     if not all(col in books_df.columns for col in required_cols):
                         st.error(f"Қажетті бағандар жоқ: {required_cols}. Файлда: {list(books_df.columns)}")
                     else:
-                        # Түрі бағаны жоқ болса, оқулық деп белгілеу
                         if 'Түрі' not in books_df.columns:
                             books_df['Түрі'] = '📘 Оқулық'
 
                         added = 0
                         skipped = 0
                         for idx, row in books_df.iterrows():
-                            # Пәнінің дұрыстығын тексеру
                             if row['Пәні'] not in subjects:
-                                st.warning(f"Жол {idx+2}: '{row['Атауы']}' кітабының пәні ('{row['Пәні']}') танылмады. Қосылмады.")
+                                st.warning(f"Жол {idx+2}: '{row['Атауы']}' пәні ('{row['Пәні']}') танылмады. Қосылмады.")
                                 skipped += 1
                                 continue
-                            # Қосарланбауын тексеру (Атауы мен Авторы бойынша)
                             if any(b['Атауы'] == row['Атауы'] and b['Авторы'] == row['Авторы'] for b in st.session_state.library):
-                                st.info(f"«{row['Атауы']}» кітабы қазірдің өзінде бар. Қайта қосылмады.")
+                                st.info(f"«{row['Атауы']}» кітабы бар. Қайта қосылмады.")
                                 skipped += 1
                                 continue
-
                             st.session_state.library.append({
                                 "Атауы": row['Атауы'],
                                 "Авторы": row['Авторы'],
@@ -568,10 +574,10 @@ elif menu == "📚 Кітапхана":
                             st.success(f"{added} кітап сәтті қосылды! Қайталану/қате: {skipped}")
                             st.rerun()
                         else:
-                            st.warning("Ешбір жаңа кітап қосылмады. Файлды тексеріңіз.")
-
+                            st.warning("Ешбір жаңа кітап қосылмады.")
                 except Exception as e:
-                    st.error(f"Қате орын алды: {e}")
+                    st.error(f"Қате: {e}")
+                    
 # ======================== 11. ҰСЫНЫСТАР (нейрондық желі стилі) ========================
 elif menu == "🧠 Ұсыныстар":
     st.title("🧠 AI ұсыныстар")
