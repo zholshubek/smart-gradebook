@@ -12,7 +12,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-# sklearn импорттарының қасына мынаны қосыңыз:
+
+# sklearn импорттары
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import accuracy_score, classification_report
@@ -76,7 +77,6 @@ if st.sidebar.button("🚪 Шығу", use_container_width=True):
 # MENU
 # -------------------------------
 st.sidebar.title("📚 Smart School Portal")
-# МЕНЮ (sidebar бөлімі)
 menu = st.sidebar.radio(
     "Бөлімдер:", 
     ["🏠 Журнал", "📊 Аналитика", "🧠 Болжау", "👤 Профиль", "📲 Хабар", "🧾 PDF", "🏆 Рейтинг"],
@@ -139,9 +139,8 @@ df['тапсырма'] = df['ең әлсіз пән'] + " пәнінен 10 ес
 df['хабар'] = df['аты'] + "\n" + df['AI']
 
 # -------------------------------
-
 # ML MODELS (БІРНЕШЕ МОДЕЛЬ)
-# ===============================
+# -------------------------------
 X = df[subjects + ['қатысу']]
 y = df['қауіп']
 
@@ -318,30 +317,32 @@ elif menu == "📊 Аналитика":
         st.subheader("⚠️ Ең әлсіз 3 оқушы")
         bottom3 = df.nsmallest(3, 'орташа балл')[['аты', 'орташа балл']]
         st.dataframe(bottom3, use_container_width=True)
-# ===== МОДЕЛЬДЕРДІҢ ДӘЛДІГІ =====
-with st.expander("🤖 ML Модельдерінің сапасы"):
-    st.subheader("Модельдерді салыстыру")
     
-    # Кросс-валидация (қарапайым)
-    from sklearn.model_selection import cross_val_score
-    
-    model_comparison = []
-    for name, mdl in trained_models.items():
-        # 5-fold кросс-валидация
-        scores = cross_val_score(mdl, X, y, cv=min(5, len(X)-1))
-        model_comparison.append({
-            "Модель": name,
-            "Орташа дәлдік": f"{scores.mean()*100:.1f}%",
-            "Мин/Макс": f"{scores.min()*100:.1f}% / {scores.max()*100:.1f}%",
-            "Тұрақтылық": "🔴" if scores.std() > 0.15 else "🟡" if scores.std() > 0.08 else "🟢"
-        })
-    
-    st.dataframe(pd.DataFrame(model_comparison), use_container_width=True)
-    
-    # Ең жақсы модельді ұсыну
-    best_model = max(trained_models.keys(), 
-                     key=lambda x: cross_val_score(trained_models[x], X, y, cv=min(5, len(X)-1)).mean())
-    st.success(f"🏆 **Ұсынылатын модель:** {best_model} - ең жоғары дәлдік көрсетті!")
+    # ===== МОДЕЛЬДЕРДІҢ ДӘЛДІГІ =====
+    with st.expander("🤖 ML Модельдерінің сапасы"):
+        st.subheader("Модельдерді салыстыру")
+        
+        # Кросс-валидация (қарапайым)
+        from sklearn.model_selection import cross_val_score
+        
+        model_comparison = []
+        for name, mdl in trained_models.items():
+            # 5-fold кросс-валидация
+            scores = cross_val_score(mdl, X, y, cv=min(5, len(X)-1))
+            model_comparison.append({
+                "Модель": name,
+                "Орташа дәлдік": f"{scores.mean()*100:.1f}%",
+                "Мин/Макс": f"{scores.min()*100:.1f}% / {scores.max()*100:.1f}%",
+                "Тұрақтылық": "🔴" if scores.std() > 0.15 else "🟡" if scores.std() > 0.08 else "🟢"
+            })
+        
+        st.dataframe(pd.DataFrame(model_comparison), use_container_width=True)
+        
+        # Ең жақсы модельді ұсыну
+        best_model = max(trained_models.keys(), 
+                         key=lambda x: cross_val_score(trained_models[x], X, y, cv=min(5, len(X)-1)).mean())
+        st.success(f"🏆 **Ұсынылатын модель:** {best_model} - ең жоғары дәлдік көрсетті!")
+
 # ===============================
 # 3. БОЛЖАУ
 # ===============================
@@ -414,10 +415,8 @@ elif menu == "🧠 Болжау":
                 # Нәтиже эмодзи
                 if pred == 1:
                     result_emoji = "⚠️ Қауіпті"
-                    result_color = "red"
                 else:
                     result_emoji = "✅ Қауіпсіз"
-                    result_color = "green"
                 
                 comparison_data.append({
                     "Модель": name,
@@ -574,30 +573,30 @@ elif menu == "👤 Профиль":
     st.subheader("📚 Ұсынылған тапсырма")
     st.success(f"✅ {row['тапсырма']}")
     
+    # ===== ЖЕКЕ ОҚУШЫҒА БОЛЖАУ =====
+    with st.expander("🔮 Осы оқушыға болжау жасау"):
+        st.markdown("Барлық модельдердің осы оқушы туралы болжамы:")
+        
+        student_data = [[row[s] for s in subjects] + [row['қатысу']]]
+        
+        for name, mdl in trained_models.items():
+            pred = mdl.predict(student_data)[0]
+            prob = mdl.predict_proba(student_data)[0][1] * 100
+            
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                st.write(f"**{name}**")
+            with col2:
+                if pred == 1:
+                    st.error("⚠️ Қауіпті")
+                else:
+                    st.success("✅ Қауіпсіз")
+            with col3:
+                st.write(f"{prob:.1f}%")
+    
     # Толық мәлімет
     with st.expander("📋 Толық мәлімет"):
         st.dataframe(df[df['аты'] == student], use_container_width=True)
-
-# ===== ЖЕКЕ ОҚУШЫҒА БОЛЖАУ =====
-with st.expander("🔮 Осы оқушыға болжау жасау"):
-    st.markdown("Барлық модельдердің осы оқушы туралы болжамы:")
-    
-    student_data = [[row[s] for s in subjects] + [row['қатысу']]]
-    
-    for name, mdl in trained_models.items():
-        pred = mdl.predict(student_data)[0]
-        prob = mdl.predict_proba(student_data)[0][1] * 100
-        
-        col1, col2, col3 = st.columns([2, 1, 1])
-        with col1:
-            st.write(f"**{name}**")
-        with col2:
-            if pred == 1:
-                st.error("⚠️ Қауіпті")
-            else:
-                st.success("✅ Қауіпсіз")
-        with col3:
-            st.write(f"{prob:.1f}%")
 
 # ===============================
 # 5. ХАБАР
