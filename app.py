@@ -3,14 +3,13 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from datetime import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.model_selection import cross_val_score
 from datetime import datetime
-
-# PDF үшін импорттар
+import plotly.express as px
+import plotly.graph_objects as go
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import letter
@@ -25,29 +24,16 @@ try:
 except:
     FONT_AVAILABLE = False
 
-# -------------------------------
-# CONFIG
-# -------------------------------
 st.set_page_config(page_title="Smart School Portal", layout="wide")
-
 st.markdown("""
 <style>
-.kpi-card {
-    background: linear-gradient(135deg, #1e293b, #0f172a);
-    padding: 20px;
-    border-radius: 15px;
-    color: white;
-    text-align: center;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-}
+.kpi-card { background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 15px; color: white; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
 .kpi-title { font-size: 14px; opacity: 0.7; }
 .kpi-value { font-size: 28px; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------------
-# ПАЙДАЛАНУШЫЛАР (рөлдермен)
-# -------------------------------
+# ---------- ПАЙДАЛАНУШЫЛАР ----------
 users = {
     "admin": {"password": "1234", "role": "admin", "name": "Әкімші"},
     "teacher": {"password": "1111", "role": "teacher", "name": "Мұғалім"},
@@ -55,16 +41,12 @@ users = {
     "student_asan": {"password": "3333", "role": "student", "name": "Асан", "child": "Асан"}
 }
 
-# Сессияны бастау
 if "login" not in st.session_state:
     st.session_state.login = False
     st.session_state.role = None
     st.session_state.username = None
     st.session_state.child = None
 
-# -------------------------------
-# LOGIN
-# -------------------------------
 if not st.session_state.login:
     st.title("🔐 Жүйеге кіру")
     col1, col2, col3 = st.columns([1,2,1])
@@ -83,7 +65,6 @@ if not st.session_state.login:
                 st.error("Қате логин немесе құпия сөз!")
     st.stop()
 
-# Шығу батырмасы
 if st.sidebar.button("🚪 Шығу", use_container_width=True):
     st.session_state.login = False
     st.session_state.role = None
@@ -91,1054 +72,519 @@ if st.sidebar.button("🚪 Шығу", use_container_width=True):
     st.session_state.child = None
     st.rerun()
 
-# -------------------------------
-# MENU (рөлге қарай көрсету)
-# -------------------------------
 st.sidebar.title("📚 Smart School Portal")
-st.sidebar.write(f"**Қош келдіңіз, {st.session_state.username}!**")
-st.sidebar.write(f"Рөл: {st.session_state.role}")
+st.sidebar.write(f"**Қош келдіңіз, {st.session_state.username}!** (Рөл: {st.session_state.role})")
 
-# Негізгі меню элементтері
-# Негізгі меню элементтері
 menu_items = ["🏠 Журнал", "📊 Аналитика", "🧠 Болжау", "👤 Профиль", "📲 Хабар", "🧾 PDF", "🏆 Рейтинг"]
-
-# Қосымша элементтер (рөлдерге байланысты)
 extra_items = []
 if st.session_state.role in ["admin", "teacher"]:
-    extra_items.append("📅 Күнтізбе")
-    extra_items.append("📋 Қатысу")
-    extra_items.append("📚 Кітапхана")        # <-- қосылды
-    extra_items.append("🧠 Ұсыныстар")        # <-- қосылды
+    extra_items.extend(["📅 Күнтізбе", "📋 Қатысу", "📚 Кітапхана", "🧠 Ұсыныстар", "😊 Психология"])
 if st.session_state.role == "admin":
     extra_items.append("👥 Пайдаланушылар")
-
 menu = st.sidebar.radio("Бөлімдер:", menu_items + extra_items, index=0)
 
-# -------------------------------
-# DATA
-# -------------------------------
+# ---------- ДЕРЕКТЕР ----------
 uploaded = st.sidebar.file_uploader("📂 Excel файл жүктеу", type=["xlsx"])
-
 def load_data():
     if uploaded is not None:
         df = pd.read_excel(uploaded)
         required = ['аты', 'математика', 'физика', 'информатика', 'қазақ тілі', 'ағылшын тілі', 'қатысу']
-        missing = [c for c in required if c not in df.columns]
-        if missing:
-            st.error(f"Келесі бағандар жоқ: {missing}")
+        if any(c not in df.columns for c in required):
+            st.error("Қажетті бағандар жоқ!")
             st.stop()
         return df
     else:
         return pd.DataFrame({
             'аты': ['Асан', 'Айгүл', 'Нұрсұлтан', 'Динара', 'Ержан', 'Мадина', 'Самат', 'Аружан'],
-            'математика': [80, 50, 40, 90, 65, 30, 85, 55],
-            'физика': [70, 55, 45, 95, 60, 35, 88, 50],
-            'информатика': [85, 60, 50, 92, 70, 40, 90, 65],
-            'қазақ тілі': [75, 58, 48, 88, 68, 45, 86, 60],
-            'ағылшын тілі': [78, 52, 46, 91, 66, 38, 87, 58],
-            'қатысу': [90, 60, 50, 95, 70, 40, 92, 65]
+            'математика': [80,50,40,90,65,30,85,55],
+            'физика': [70,55,45,95,60,35,88,50],
+            'информатика': [85,60,50,92,70,40,90,65],
+            'қазақ тілі': [75,58,48,88,68,45,86,60],
+            'ағылшын тілі': [78,52,46,91,66,38,87,58],
+            'қатысу': [90,60,50,95,70,40,92,65]
         })
-
 df = load_data()
-subjects = ['математика', 'физика', 'информатика', 'қазақ тілі', 'ағылшын тілі']
-
-# -------------------------------
-# PROCESSING
-# -------------------------------
+subjects = ['математика','физика','информатика','қазақ тілі','ағылшын тілі']
 df['орташа балл'] = df[subjects].mean(axis=1)
-df['өткен'] = df['орташа балл'] - np.random.randint(5, 15, len(df))
-df['өткен'] = df['өткен'].clip(0, 100)
-df['қауіп'] = np.where((df['орташа балл'] < 60) | (df['қатысу'] < 60), 1, 0)
-
+df['өткен'] = (df['орташа балл'] - np.random.randint(5,15,len(df))).clip(0,100)
+df['қауіп'] = np.where((df['орташа балл']<60) | (df['қатысу']<60),1,0)
 def find_weak_subject(row):
-    scores = {s: row[s] for s in subjects}
+    scores = {s:row[s] for s in subjects}
     return min(scores, key=scores.get)
-
 df['ең әлсіз пән'] = df.apply(find_weak_subject, axis=1)
-
 def generate_ai_recommendation(row):
-    if row['орташа балл'] < 50:
-        return f"⚠️ {row['аты']} оқушысының үлгерімі өте төмен. {row['ең әлсіз пән']} пәніне ерекше назар аудару қажет. Ата-анамен байланысып, қосымша сабақ ұйымдастыру керек."
-    elif row['орташа балл'] < 70:
-        return f"📘 {row['аты']} оқушысы орташа деңгейде. {row['ең әлсіз пән']} пәнін жақсарту қажет. Күнделікті 30 минут қосымша жұмыс ұсынылады."
+    if row['орташа балл']<50:
+        return f"⚠️ {row['аты']} оқушысының үлгерімі өте төмен. {row['ең әлсіз пән']} пәніне ерекше назар аудару қажет."
+    elif row['орташа балл']<70:
+        return f"📘 {row['аты']} оқушысы орташа деңгейде. {row['ең әлсіз пән']} пәнін жақсарту қажет."
     else:
-        return f"🎉 {row['аты']} оқушысы жақсы нәтиже көрсетіп отыр. Жетістігін сақтау үшін осылай жалғастыра берсін!"
-
+        return f"🎉 {row['аты']} оқушысы жақсы нәтиже көрсетіп отыр."
 df['AI'] = df.apply(generate_ai_recommendation, axis=1)
 df['тапсырма'] = df['ең әлсіз пән'] + " пәнінен 10 есеп шығару"
-df['хабар'] = df['аты'] + "\n" + df['AI']
 
-# -------------------------------
-# ML MODELS
-# -------------------------------
-X = df[subjects + ['қатысу']]
+# ML Модельдер
+X = df[subjects+['қатысу']]
 y = df['қауіп']
-
 models = {
     'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
     'Logistic Regression': LogisticRegression(random_state=42, max_iter=1000),
     'Gradient Boosting': GradientBoostingClassifier(n_estimators=100, random_state=42)
 }
-
 trained_models = {}
-for name, model in models.items():
-    model.fit(X, y)
-    trained_models[name] = model
+for name, m in models.items():
+    m.fit(X,y)
+    trained_models[name] = m
 
-model = trained_models['Random Forest']
-
-# ===============================
-# 1. ЖУРНАЛ
-# ===============================
+# ======================== 1. ЖУРНАЛ ========================
 if menu == "🏠 Журнал":
-    if st.session_state.role not in ["admin", "teacher", "parent", "student"]:
-        st.error("❌ Бұл бөлімге қол жеткізу мүмкін емес!")
+    if st.session_state.role not in ["admin","teacher","parent","student"]:
+        st.error("Қолжетімсіз")
         st.stop()
-    
     st.title("📊 Оқушылар журналы")
-    
-    # Рөлге байланысты фильтр
-    if st.session_state.role in ["parent", "student"]:
+    if st.session_state.role in ["parent","student"]:
         selected_student = st.session_state.child
-        filtered_df = df[df['аты'] == selected_student]
+        filtered_df = df[df['аты']==selected_student]
     else:
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            selected_student = st.selectbox("Оқушы таңда", ["Барлығы"] + list(df['аты']))
-        filtered_df = df if selected_student == "Барлығы" else df[df['аты'] == selected_student]
-    
-    st.subheader("📊 Орташа балл диаграммасы")
-    fig, ax = plt.subplots(figsize=(10, 5))
-    bars = ax.bar(filtered_df['аты'], filtered_df['орташа балл'], color='#4CAF50')
-    ax.axhline(y=60, color='red', linestyle='--', label='Қауіп шегі (60)')
-    ax.axhline(y=80, color='green', linestyle='--', label='Үздік шегі (80)')
-    ax.set_ylim(0, 100)
-    ax.set_ylabel("Балл")
-    ax.set_title("Оқушылардың орташа балы")
-    ax.legend()
-    for bar, val in zip(bars, filtered_df['орташа балл']):
-        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, f'{val:.1f}', ha='center', va='bottom', fontsize=10)
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
-    
+        selected_student = st.selectbox("Оқушы таңда", ["Барлығы"]+list(df['аты']))
+        filtered_df = df if selected_student=="Барлығы" else df[df['аты']==selected_student]
+    st.subheader("📊 Орташа балл (интерактивті)")
+    fig = px.bar(filtered_df, x='аты', y='орташа балл', color='орташа балл',
+                 color_continuous_scale=['#F44336','#FFC107','#4CAF50'],
+                 text='орташа балл', height=500)
+    fig.add_hline(y=60, line_dash="dash", line_color="red", annotation_text="Қауіп шегі (60)")
+    fig.add_hline(y=80, line_dash="dash", line_color="green", annotation_text="Үздік шегі (80)")
+    fig.update_traces(textposition='outside', texttemplate='%{text:.1f}')
+    fig.update_layout(yaxis_range=[0,100], xaxis_title="Оқушы", yaxis_title="Орташа балл")
+    st.plotly_chart(fig, use_container_width=True)
     st.subheader("📋 Оқушылар тізімі")
-    def highlight_row(row):
-        if row['орташа балл'] >= 80:
-            return ['background-color: #166534; color: white'] * len(row)
-        elif row['орташа балл'] < 60:
-            return ['background-color: #991b1b; color: white'] * len(row)
-        return [''] * len(row)
-    
-    display_df = filtered_df[['аты', 'математика', 'физика', 'информатика', 'қазақ тілі', 'ағылшын тілі', 'орташа балл', 'қатысу', 'қауіп']]
+    def highlight_row(r):
+        if r['орташа балл']>=80: return ['background-color: #166534; color: white']*len(r)
+        elif r['орташа балл']<60: return ['background-color: #991b1b; color: white']*len(r)
+        return ['']*len(r)
+    display_df = filtered_df[['аты','математика','физика','информатика','қазақ тілі','ағылшын тілі','орташа балл','қатысу','қауіп']]
     st.dataframe(display_df.style.apply(highlight_row, axis=1), use_container_width=True)
 
-# ===============================
-# 2. АНАЛИТИКА (ТОЛЫҚ)
-# ===============================
+# ======================== 2. АНАЛИТИКА ========================
 elif menu == "📊 Аналитика":
-    if st.session_state.role not in ["admin", "teacher"]:
-        st.error("❌ Бұл бөлімге тек мұғалім мен әкімшілік қол жеткізе алады!")
+    if st.session_state.role not in ["admin","teacher"]:
+        st.error("Тек мұғалім мен әкімшілік!")
         st.stop()
-    
     st.title("📊 Аналитика панелі")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📈 Орташа балл</div><div class='kpi-value'>{df['орташа балл'].mean():.1f}</div></div>", unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>⚠️ Қауіпті оқушылар</div><div class='kpi-value'>{df['қауіп'].sum()}</div></div>", unsafe_allow_html=True)
-    with col3:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>🏆 Үздік оқушылар</div><div class='kpi-value'>{len(df[df['орташа балл'] >= 80])}</div></div>", unsafe_allow_html=True)
-    with col4:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📚 Ең әлсіз пән</div><div class='kpi-value'>{df['ең әлсіз пән'].mode()[0]}</div></div>", unsafe_allow_html=True)
-    
+    c1,c2,c3,c4 = st.columns(4)
+    with c1: st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📈 Орташа балл</div><div class='kpi-value'>{df['орташа балл'].mean():.1f}</div></div>", unsafe_allow_html=True)
+    with c2: st.markdown(f"<div class='kpi-card'><div class='kpi-title'>⚠️ Қауіпті оқушылар</div><div class='kpi-value'>{df['қауіп'].sum()}</div></div>", unsafe_allow_html=True)
+    with c3: st.markdown(f"<div class='kpi-card'><div class='kpi-title'>🏆 Үздік оқушылар</div><div class='kpi-value'>{len(df[df['орташа балл']>=80])}</div></div>", unsafe_allow_html=True)
+    with c4: st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📚 Ең әлсіз пән</div><div class='kpi-value'>{df['ең әлсіз пән'].mode()[0]}</div></div>", unsafe_allow_html=True)
     st.divider()
-    selected = st.selectbox("👤 Оқушыны фильтрлеу", ["Барлығы"] + list(df['аты']))
-    data = df if selected == "Барлығы" else df[df['аты'] == selected]
-    
-    st.subheader("📊 Орташа балл (бағандық диаграмма)")
-    fig1, ax1 = plt.subplots(figsize=(10, 5))
-    colors_bar = ['#4CAF50' if x >= 80 else '#FFC107' if x >= 60 else '#F44336' for x in data['орташа балл']]
-    bars = ax1.bar(data['аты'], data['орташа балл'], color=colors_bar)
-    ax1.axhline(y=60, color='red', linestyle='--', alpha=0.7)
-    ax1.set_ylim(0, 100)
-    for bar, val in zip(bars, data['орташа балл']):
-        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, f'{val:.1f}', ha='center', fontsize=9)
-    plt.xticks(rotation=45)
-    st.pyplot(fig1)
-    
+    selected = st.selectbox("👤 Оқушыны фильтрлеу", ["Барлығы"]+list(df['аты']))
+    data = df if selected=="Барлығы" else df[df['аты']==selected]
+    st.subheader("📊 Орташа балл")
+    fig1 = px.bar(data, x='аты', y='орташа балл', color='орташа балл', color_continuous_scale=['#F44336','#FFC107','#4CAF50'], text='орташа балл')
+    fig1.add_hline(y=60, line_dash="dash", line_color="red")
+    fig1.update_traces(textposition='outside')
+    fig1.update_layout(yaxis_range=[0,100])
+    st.plotly_chart(fig1, use_container_width=True)
     st.subheader("📈 Прогресс (өткен vs қазір)")
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
-    x_pos = range(len(data))
-    width = 0.35
-    ax2.bar([x - width/2 for x in x_pos], data['өткен'], width, label='Өткен', color='#FF9800')
-    ax2.bar([x + width/2 for x in x_pos], data['орташа балл'], width, label='Қазір', color='#4CAF50')
-    ax2.set_xticks(x_pos)
-    ax2.set_xticklabels(data['аты'], rotation=45)
-    ax2.legend()
-    st.pyplot(fig2)
-    
-    st.subheader("📉 Балл таралуы (гистограмма)")
-    fig3, ax3 = plt.subplots(figsize=(10, 5))
-    sns.histplot(df['орташа балл'], bins=8, kde=True, color='#2196F3', ax=ax3)
-    ax3.axvline(x=60, color='red', linestyle='--', label='Қауіп шегі')
-    ax3.axvline(x=80, color='green', linestyle='--', label='Үздік шегі')
-    ax3.legend()
-    st.pyplot(fig3)
-    
-    st.subheader("📊 Пәндер арасындағы байланыс (корреляция)")
-    fig4, ax4 = plt.subplots(figsize=(8, 6))
-    sns.heatmap(df[subjects].corr(), annot=True, cmap='coolwarm', center=0, ax=ax4)
-    st.pyplot(fig4)
-    
-    st.subheader("🎯 Оқушылар деңгейі бойынша бөлініс")
-    def get_level(score):
-        if score >= 80: return "Үздік (80+)"
-        elif score >= 60: return "Орташа (60-79)"
-        else: return "Қауіпті (60-тан төмен)"
-    df['деңгей'] = df['орташа балл'].apply(get_level)
-    level_counts = df['деңгей'].value_counts()
-    fig5, ax5 = plt.subplots()
-    colors_pie = ['#4CAF50', '#FFC107', '#F44336']
-    ax5.pie(level_counts, labels=level_counts.index, autopct='%1.1f%%', colors=colors_pie, startangle=90)
-    ax5.set_title("Деңгей бойынша бөлініс")
-    st.pyplot(fig5)
-    
+    prog = pd.melt(data, id_vars=['аты'], value_vars=['өткен','орташа балл'], var_name='Кезең', value_name='Балл')
+    fig2 = px.bar(prog, x='аты', y='Балл', color='Кезең', barmode='group', text='Балл')
+    fig2.update_traces(textposition='outside')
+    fig2.update_layout(yaxis_range=[0,100])
+    st.plotly_chart(fig2, use_container_width=True)
+    st.subheader("📉 Балл таралуы")
+    fig3 = px.histogram(df, x='орташа балл', nbins=8, marginal='box', color_discrete_sequence=['#2196F3'])
+    fig3.add_vline(x=60, line_dash="dash", line_color="red")
+    fig3.add_vline(x=80, line_dash="dash", line_color="green")
+    st.plotly_chart(fig3, use_container_width=True)
+    st.subheader("📊 Корреляция")
+    fig4 = px.imshow(df[subjects].corr(), text_auto=True, aspect="auto", color_continuous_scale='RdBu')
+    st.plotly_chart(fig4, use_container_width=True)
+    st.subheader("🎯 Деңгей бойынша бөлініс")
+    df['деңгей'] = df['орташа балл'].apply(lambda x: "Үздік (80+)" if x>=80 else ("Орташа (60-79)" if x>=60 else "Қауіпті (60-тан төмен)"))
+    level_counts = df['деңгей'].value_counts().reset_index()
+    level_counts.columns = ['Деңгей','Саны']
+    fig5 = px.pie(level_counts, values='Саны', names='Деңгей', color='Деңгей',
+                  color_discrete_map={"Үздік (80+)":"#4CAF50","Орташа (60-79)":"#FFC107","Қауіпті (60-тан төмен)":"#F44336"})
+    st.plotly_chart(fig5, use_container_width=True)
     col_a, col_b = st.columns(2)
-    with col_a:
-        st.subheader("🏆 ТОП 3 оқушы")
-        top3 = df.nlargest(3, 'орташа балл')[['аты', 'орташа балл']]
-        st.dataframe(top3, use_container_width=True)
-    with col_b:
-        st.subheader("⚠️ Ең әлсіз 3 оқушы")
-        bottom3 = df.nsmallest(3, 'орташа балл')[['аты', 'орташа балл']]
-        st.dataframe(bottom3, use_container_width=True)
-    
+    with col_a: st.subheader("🏆 ТОП 3"); st.dataframe(df.nlargest(3,'орташа балл')[['аты','орташа балл']], use_container_width=True)
+    with col_b: st.subheader("⚠️ Ең әлсіз 3"); st.dataframe(df.nsmallest(3,'орташа балл')[['аты','орташа балл']], use_container_width=True)
     with st.expander("🤖 ML Модельдерінің сапасы"):
-        st.subheader("Модельдерді салыстыру")
-        model_comparison = []
+        comp = []
         for name, mdl in trained_models.items():
             try:
-                cv_folds = min(3, len(X)-1)
+                cv_folds = min(3,len(X)-1)
                 scores = cross_val_score(mdl, X, y, cv=cv_folds)
-                model_comparison.append({
-                    "Модель": name,
-                    "Орташа дәлдік": f"{scores.mean()*100:.1f}%",
-                    "Мин/Макс": f"{scores.min()*100:.1f}% / {scores.max()*100:.1f}%",
-                    "Тұрақтылық": "🔴" if scores.std() > 0.15 else "🟡" if scores.std() > 0.08 else "🟢"
-                })
+                comp.append({"Модель": name, "Орташа дәлдік": f"{scores.mean()*100:.1f}%",
+                             "Мин/Макс": f"{scores.min()*100:.1f}%/{scores.max()*100:.1f}%",
+                             "Тұрақтылық": "🔴" if scores.std()>0.15 else "🟡" if scores.std()>0.08 else "🟢"})
             except:
-                model_comparison.append({
-                    "Модель": name,
-                    "Орташа дәлдік": "❌ Есептеу мүмкін емес",
-                    "Мин/Макс": "-",
-                    "Тұрақтылық": "⚪"
-                })
-        st.dataframe(pd.DataFrame(model_comparison), use_container_width=True)
-        best_model = None
-        best_score = -1
-        for name, mdl in trained_models.items():
-            try:
-                score = cross_val_score(mdl, X, y, cv=min(3, len(X)-1)).mean()
-                if score > best_score:
-                    best_score = score
-                    best_model = name
-            except:
-                pass
-        if best_model:
-            st.success(f"🏆 **Ұсынылатын модель:** {best_model} - ең жоғары дәлдік көрсетті!")
-        else:
-            st.info("ℹ️ Модельдерді салыстыру мүмкін болмады. Деректер саны жеткіліксіз.")
+                comp.append({"Модель": name, "Орташа дәлдік": "❌", "Мин/Макс": "-", "Тұрақтылық": "⚪"})
+        st.dataframe(pd.DataFrame(comp), use_container_width=True)
 
-# ===============================
-# 3. БОЛЖАУ (ТОЛЫҚ)
-# ===============================
+# ======================== 3. БОЛЖАУ ========================
 elif menu == "🧠 Болжау":
     st.title("🧠 Ақылды болжау жүйесі")
     st.markdown("Оқушының бағаларын енгізіп, қауіп тобына кіретінін болжаңыз")
-    
     st.subheader("🤖 Модельді таңдаңыз")
-    model_choice = st.selectbox(
-        "Қай модельді қолданғыңыз келеді?",
-        options=['Random Forest', 'Logistic Regression', 'Gradient Boosting'],
-        help="Әр модельдің өз артықшылықтары бар. Gradient Boosting ең дәл нәтиже береді."
-    )
-    model_info = {
-        'Random Forest': "🌲 Көптеген шешім ағаштарынан тұрады. Орташа дәлдік, жылдам жұмыс.",
-        'Logistic Regression': "📈 Сызықтық теңдеу негізінде жұмыс істейді. Өте жылдам, бірақ күрделі жағдайларда нашар.",
-        'Gradient Boosting': "🎯 Қателерді кезең-кезеңімен түзетеді. Ең дәл нәтиже, бірақ сәл баяу."
-    }
+    model_choice = st.selectbox("Модель", ['Random Forest','Logistic Regression','Gradient Boosting'])
+    model_info = {'Random Forest':"🌲 Көптеген шешім ағаштары", 'Logistic Regression':"📈 Сызықтық теңдеу", 'Gradient Boosting':"🎯 Қателерді кезең-кезеңімен түзетеді"}
     st.info(model_info[model_choice])
-    
     col1, col2 = st.columns(2)
     with col1:
-        math = st.slider("📘 Математика", 0, 100, 65)
-        physics = st.slider("🔬 Физика", 0, 100, 65)
-        info = st.slider("💻 Информатика", 0, 100, 65)
+        math = st.slider("📘 Математика",0,100,65)
+        physics = st.slider("🔬 Физика",0,100,65)
+        info = st.slider("💻 Информатика",0,100,65)
     with col2:
-        kazakh = st.slider("📖 Қазақ тілі", 0, 100, 65)
-        english = st.slider("🌍 Ағылшын тілі", 0, 100, 65)
-        attendance = st.slider("📅 Қатысу (%)", 0, 100, 75)
-    
+        kazakh = st.slider("📖 Қазақ тілі",0,100,65)
+        english = st.slider("🌍 Ағылшын тілі",0,100,65)
+        attendance = st.slider("📅 Қатысу (%)",0,100,75)
     input_data = [[math, physics, info, kazakh, english, attendance]]
-    
     st.subheader("📊 Енгізілген мәліметтер")
-    fig, ax = plt.subplots(figsize=(8, 4))
-    bars = ax.bar(subjects, [math, physics, info, kazakh, english])
-    colors_bar = ['#4CAF50' if x >= 70 else '#FFC107' if x >= 50 else '#F44336' for x in [math, physics, info, kazakh, english]]
-    for bar, color in zip(bars, colors_bar):
-        bar.set_color(color)
-    ax.axhline(y=60, color='red', linestyle='--', alpha=0.7)
-    ax.set_ylim(0, 100)
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
-    
+    subjects_rus = ['математика','физика','информатика','қазақ тілі','ағылшын тілі']
+    values = [math, physics, info, kazakh, english]
+    fig = px.bar(x=subjects_rus, y=values, color=values, color_continuous_scale=['#F44336','#FFC107','#4CAF50'], text=values)
+    fig.add_hline(y=60, line_dash="dash", line_color="red")
+    fig.update_layout(yaxis_range=[0,100])
+    st.plotly_chart(fig, use_container_width=True)
     if st.button("🔍 Болжау жасау", type="primary", use_container_width=True):
         selected_model = trained_models[model_choice]
-        prediction = selected_model.predict(input_data)[0]
-        probability = selected_model.predict_proba(input_data)[0]
-        
+        pred = selected_model.predict(input_data)[0]
+        prob = selected_model.predict_proba(input_data)[0]
         st.divider()
-        st.subheader("🎯 Болжау нәтижесі")
-        
-        with st.expander("📊 Барлық модельдердің нәтижелерін салыстыру"):
-            comparison_data = []
+        st.subheader("🎯 Нәтиже")
+        with st.expander("📊 Барлық модельдерді салыстыру"):
+            comp_data = []
             for name, mdl in trained_models.items():
-                pred = mdl.predict(input_data)[0]
-                prob = mdl.predict_proba(input_data)[0][1] * 100
-                result_emoji = "⚠️ Қауіпті" if pred == 1 else "✅ Қауіпсіз"
-                comparison_data.append({
-                    "Модель": name,
-                    "Нәтиже": result_emoji,
-                    "Қауіп ықтималдығы": f"{prob:.1f}%",
-                    "Сенімділік деңгейі": "🔴 Жоғары" if prob > 70 else "🟡 Орташа" if prob > 30 else "🟢 Төмен"
-                })
-            st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
-            predictions = [mdl.predict(input_data)[0] for mdl in trained_models.values()]
-            consensus = max(set(predictions), key=predictions.count)
-            consensus_percent = (predictions.count(consensus) / len(predictions)) * 100
-            if consensus == 1:
-                st.warning(f"🤝 **Модельдер келісімі:** {consensus_percent:.0f}% модельдер 'Қауіпті' деп есептейді")
-            else:
-                st.success(f"🤝 **Модельдер келісімі:** {consensus_percent:.0f}% модельдер 'Қауіпсіз' деп есептейді")
-        
+                p = mdl.predict(input_data)[0]
+                prob2 = mdl.predict_proba(input_data)[0][1]*100
+                comp_data.append({"Модель": name, "Нәтиже": "⚠️ Қауіпті" if p==1 else "✅ Қауіпсіз", "Қауіп ықтималдығы": f"{prob2:.1f}%"})
+            st.dataframe(pd.DataFrame(comp_data), use_container_width=True)
+            preds = [mdl.predict(input_data)[0] for mdl in trained_models.values()]
+            consensus = max(set(preds), key=preds.count)
+            st.write(f"🤝 Модельдер келісімі: {preds.count(consensus)/len(preds)*100:.0f}%")
         col_a, col_b = st.columns(2)
         with col_a:
-            if prediction == 1:
-                st.error("⚠️ ҚАУІПТІ ТОБЫ")
-                st.markdown("Бұл оқушы қауіп тобына жатады. Дереу шара қолдану қажет!")
-            else:
-                st.success("✅ ҚАУІПСІЗ ТОБЫ")
-                st.markdown("Бұл оқушы қауіп тобына жатпайды.")
+            if pred==1: st.error("⚠️ ҚАУІПТІ ТОБЫ"); st.markdown("Дереу шара қолдану қажет!")
+            else: st.success("✅ ҚАУІПСІЗ ТОБЫ")
         with col_b:
-            st.metric("📊 Таңдалған модель", model_choice)
-            st.metric("⚠️ Қауіп ықтималдығы", f"{probability[1]*100:.1f}%")
-            confidence = probability[1] if prediction == 1 else probability[0]
-            if confidence > 0.7:
-                st.progress(confidence, text="🔴 Жоғары сенімділік")
-            elif confidence > 0.4:
-                st.progress(confidence, text="🟡 Орташа сенімділік")
-            else:
-                st.progress(confidence, text="🟢 Төмен сенімділік")
-        
+            st.metric("Таңдалған модель", model_choice)
+            st.metric("Қауіп ықтималдығы", f"{prob[1]*100:.1f}%")
+            conf = prob[1] if pred==1 else prob[0]
+            st.progress(conf, text="🔴 Жоғары" if conf>0.7 else "🟡 Орташа" if conf>0.4 else "🟢 Төмен")
         st.subheader("🤖 AI ұсынысы")
-        avg_score = np.mean([math, physics, info, kazakh, english])
-        weakest = subjects[np.argmin([math, physics, info, kazakh, english])]
-        avg_risk = np.mean([mdl.predict_proba(input_data)[0][1] for mdl in trained_models.values()]) * 100
-        
-        if avg_score < 50:
-            st.error(f"🔴 **Жедел араласу қажет!**\n\n- Әлсіз пән: **{weakest}**\n- Орташа балл: {avg_score:.1f}\n- Модельдердің орташа қауіп бағасы: {avg_risk:.1f}%\n\n**Ұсыныстар:**\n- Жеке мұғаліммен қосымша сабақ\n- Ата-анамен кездесу\n- Күнделікті оқу жоспары")
-        elif avg_score < 70:
-            st.warning(f"🟡 **Орташа деңгей, жақсарту қажет**\n\n- Әлсіз пән: **{weakest}**\n- Орташа балл: {avg_score:.1f}\n- Модельдердің орташа қауіп бағасы: {avg_risk:.1f}%\n\n**Ұсыныстар:**\n- {weakest} пәніне көбірек уақыт бөлу\n- Аптасына 2 рет қосымша сабақ")
-        else:
-            st.success(f"🟢 **Жақсы деңгей!**\n\n- Орташа балл: {avg_score:.1f}\n- Модельдердің орташа қауіп бағасы: {avg_risk:.1f}%\n\n**Ұсыныстар:**\n- Жетістігін сақтау\n- Олимпиадаға дайындалу")
-        
-        if avg_risk > 70 and avg_score >= 70:
-            st.warning("⚠️ **Қызық жағдай:** Бағалары жақсы, бірақ модельдер қауіпті болжайды. Қатысуды тексеріңіз!")
-        elif avg_risk < 30 and avg_score < 60:
-            st.info("ℹ️ **Ескерту:** Бағалары төмен, бірақ модельдер қауіпсіз деп тұр. Бұл жағдайды қадағалаңыз.")
+        avg_score = np.mean([math,physics,info,kazakh,english])
+        weakest = subjects_rus[np.argmin([math,physics,info,kazakh,english])]
+        avg_risk = np.mean([mdl.predict_proba(input_data)[0][1] for mdl in trained_models.values()])*100
+        if avg_score<50: st.error(f"🔴 Жедел араласу! Әлсіз пән: {weakest}\nОрташа балл: {avg_score:.1f}")
+        elif avg_score<70: st.warning(f"🟡 Орташа деңгей. {weakest} пәнін жақсарту керек.")
+        else: st.success(f"🟢 Жақсы деңгей! Олимпиадаға дайындалу.")
 
-# ===============================
-# ===============================
-# 4. ПРОФИЛЬ (ТОЛЫҚ + ПОРТФОЛИО + ЧАТ)
-# ===============================
+# ======================== 4. ПРОФИЛЬ (толық портфолио+чат) ========================
 elif menu == "👤 Профиль":
     st.title("👤 Оқушы профилі")
-    
-    # Рөлге қарай оқушы таңдау
-    if st.session_state.role in ["parent", "student"]:
+    if st.session_state.role in ["parent","student"]:
         student = st.session_state.child
     else:
-        student = st.selectbox("Оқушы таңдаңыз", df['аты'])
-    
-    row = df[df['аты'] == student].iloc[0]
-    
-    # Негізгі KPI
-    col1, col2, col3, col4 = st.columns(4)
-    with col1: st.metric("📈 Орташа балл", f"{row['орташа балл']:.1f}")
-    with col2: st.metric("📅 Қатысу", f"{row['қатысу']}%")
-    with col3: st.metric("⚠️ Қауіп тобы", "Иә" if row['қауіп'] == 1 else "Жоқ")
-    with col4: st.metric("📚 Әлсіз пән", row['ең әлсіз пән'])
+        student = st.selectbox("Оқушы", df['аты'])
+    row = df[df['аты']==student].iloc[0]
+    c1,c2,c3,c4 = st.columns(4)
+    with c1: st.metric("📈 Орташа балл", f"{row['орташа балл']:.1f}")
+    with c2: st.metric("📅 Қатысу", f"{row['қатысу']}%")
+    with c3: st.metric("⚠️ Қауіп тобы", "Иә" if row['қауіп']==1 else "Жоқ")
+    with c4: st.metric("📚 Әлсіз пән", row['ең әлсіз пән'])
     st.divider()
-    
-    # Пәндер графигі
     st.subheader("📊 Пәндер бойынша нәтиже")
-    fig, ax = plt.subplots(figsize=(8, 4))
-    scores = [row[s] for s in subjects]
-    bars = ax.bar(subjects, scores)
-    colors_bar = ['#4CAF50' if x >= 70 else '#FFC107' if x >= 50 else '#F44336' for x in scores]
-    for bar, color in zip(bars, colors_bar):
-        bar.set_color(color)
-    ax.axhline(y=60, color='red', linestyle='--', alpha=0.7)
-    ax.set_ylim(0, 100)
-    for bar, val in zip(bars, scores):
-        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, str(val), ha='center', fontsize=10)
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
-    
-    # Прогресс
-    st.subheader("📈 Прогресс (өткен ай vs қазір)")
-    fig2, ax2 = plt.subplots(figsize=(6, 4))
-    ax2.plot(['Өткен ай', 'Қазір'], [row['өткен'], row['орташа балл']], marker='o', linewidth=2, markersize=10)
-    ax2.fill_between(['Өткен ай', 'Қазір'], [row['өткен'], row['орташа балл']], alpha=0.3)
-    ax2.set_ylim(0, 100)
-    ax2.grid(True, alpha=0.3)
-    st.pyplot(fig2)
-    
-    # AI ұсыныс
-    st.subheader("🧠 AI талдау және ұсыныс")
-    st.info(row['AI'])
-    st.subheader("📚 Ұсынылған тапсырма")
-    st.success(f"✅ {row['тапсырма']}")
-    
-    # ==========================================
-    # 1. ПОРТФОЛИО (жетістіктер)
-    # ==========================================
+    scores_df = pd.DataFrame({"Пән": subjects, "Балл": [row[s] for s in subjects]})
+    fig = px.bar(scores_df, x='Пән', y='Балл', color='Балл', color_continuous_scale=['#F44336','#FFC107','#4CAF50'], text='Балл')
+    fig.add_hline(y=60, line_dash="dash", line_color="red")
+    fig.update_layout(yaxis_range=[0,100])
+    st.plotly_chart(fig, use_container_width=True)
+    st.subheader("📈 Прогресс")
+    prog_df = pd.DataFrame({"Кезең": ["Өткен ай", "Қазір"], "Балл": [row['өткен'], row['орташа балл']]})
+    fig2 = px.line(prog_df, x='Кезең', y='Балл', markers=True)
+    fig2.update_layout(yaxis_range=[0,100])
+    st.plotly_chart(fig2, use_container_width=True)
+    st.subheader("🧠 AI ұсыныс"); st.info(row['AI'])
+    st.subheader("📚 Тапсырма"); st.success(row['тапсырма'])
+
+    # Портфолио
     with st.expander("🏆 Оқушының жетістіктері (портфолио)"):
         if f"portfolio_{student}" not in st.session_state:
-            st.session_state[f"portfolio_{student}"] = [
-                {"Күні": "2024-12-10", "Жетістік": "Математика олимпиадасына қатысу", "Түрі": "🏅 Қатысу"},
-                {"Күні": "2024-11-05", "Жетістік": "Информатикадан аудандық олимпиадада 3-орын", "Түрі": "🥉 Жүлде"},
-            ]
-        
-        # Портфолио көрсету
-        if st.session_state[f"portfolio_{student}"]:
-            portfolio_df = pd.DataFrame(st.session_state[f"portfolio_{student}"])
-            st.dataframe(portfolio_df, use_container_width=True)
-        else:
-            st.info("Әлі жетістіктер жоқ.")
-        
-        # Жаңа жетістік қосу (тек admin/teacher)
-        if st.session_state.role in ["admin", "teacher"]:
+            st.session_state[f"portfolio_{student}"] = [{"Күні":"2024-12-10","Жетістік":"Математика олимпиадасына қатысу","Түрі":"🏅"}]
+        st.dataframe(pd.DataFrame(st.session_state[f"portfolio_{student}"]), use_container_width=True)
+        if st.session_state.role in ["admin","teacher"]:
             with st.form(f"add_achievement_{student}"):
                 col1, col2 = st.columns(2)
-                with col1:
-                    new_date = st.date_input("Күні", value=datetime.today())
-                with col2:
-                    new_type = st.selectbox("Түрі", ["🏅 Қатысу", "🥉 Жүлде", "🥈 Жүлде", "🥇 Жүлде", "📜 Сертификат"])
-                new_achievement = st.text_input("Жетістік сипаттамасы")
-                if st.form_submit_button("➕ Жетістік қосу"):
-                    st.session_state[f"portfolio_{student}"].append({
-                        "Күні": str(new_date),
-                        "Жетістік": new_achievement,
-                        "Түрі": new_type
-                    })
-                    st.success("Жетістік қосылды!")
+                with col1: new_date = st.date_input("Күні")
+                with col2: new_type = st.selectbox("Түрі", ["🏅 Қатысу","🥉 Жүлде","🥈 Жүлде","🥇 Жүлде"])
+                new_ach = st.text_input("Жетістік")
+                if st.form_submit_button("➕ Қосу"):
+                    st.session_state[f"portfolio_{student}"].append({"Күні":str(new_date),"Жетістік":new_ach,"Түрі":new_type})
                     st.rerun()
-    
-    # ==========================================
-    # 2. АТА-АНА-МҰҒАЛІМ ЧАТЫ
-    # ==========================================
-    with st.expander("💬 Ата-ана-мұғалім байланысы (чат)"):
+
+    # Чат
+    with st.expander("💬 Ата-ана-мұғалім байланысы"):
         if f"chat_{student}" not in st.session_state:
             st.session_state[f"chat_{student}"] = []
-        
-        # Хабарларды көрсету
-        chat_msgs = st.session_state[f"chat_{student}"]
-        if chat_msgs:
-            for msg in chat_msgs:
-                if msg["рөл"] == "teacher":
-                    st.markdown(f"👩‍🏫 **Мұғалім** ({msg['уақыт']}): {msg['мәтін']}")
-                elif msg["рөл"] == "parent":
-                    st.markdown(f"👪 **Ата-ана** ({msg['уақыт']}): {msg['мәтін']}")
-                elif msg["рөл"] == "student":
-                    st.markdown(f"👨‍🎓 **Оқушы** ({msg['уақыт']}): {msg['мәтін']}")
-                elif msg["рөл"] == "admin":
-                    st.markdown(f"⚙️ **Әкімшілік** ({msg['уақыт']}): {msg['мәтін']}")
-        else:
-            st.info("Әлі хабар жоқ. Бірінші хабарды жазыңыз!")
-        
-        # Жаңа хабар жіберу (рөлге байланысты)
-        allowed_roles = []
-        if st.session_state.role == "teacher":
-            allowed_roles.append("teacher")
-        if st.session_state.role == "parent":
-            allowed_roles.append("parent")
-        if st.session_state.role == "student":
-            allowed_roles.append("student")
-        if st.session_state.role == "admin":
-            allowed_roles.append("admin")
-        
-        if allowed_roles:
+        for msg in st.session_state[f"chat_{student}"]:
+            st.markdown(f"**{msg['рөл']}** ({msg['уақыт']}): {msg['мәтін']}")
+        if st.session_state.role in ["admin","teacher","parent","student"]:
             with st.form(f"chat_form_{student}"):
-                msg_text = st.text_area("📝 Хабар жазыңыз", placeholder="Хабар мәтіні...")
-                submitted = st.form_submit_button("📤 Жіберу")
-                if submitted and msg_text.strip():
-                    st.session_state[f"chat_{student}"].append({
-                        "рөл": st.session_state.role,
-                        "уақыт": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "мәтін": msg_text
-                    })
-                    st.success("Хабар жіберілді!")
+                txt = st.text_area("Хабар жазыңыз")
+                if st.form_submit_button("📤 Жіберу") and txt:
+                    st.session_state[f"chat_{student}"].append({"рөл":st.session_state.role, "уақыт":datetime.now().strftime("%Y-%m-%d %H:%M"), "мәтін":txt})
                     st.rerun()
-        else:
-            st.info("Сіз бұл чатқа хабар жаза алмайсыз.")
-    
-    # ==========================================
-    # 3. БОЛЖАУ (бұрынғы)
-    # ==========================================
-    with st.expander("🔮 Осы оқушыға болжау жасау"):
-        st.markdown("Барлық модельдердің осы оқушы туралы болжамы:")
+
+    # Болжау
+    with st.expander("🔮 Осы оқушыға болжау"):
         student_data = [[row[s] for s in subjects] + [row['қатысу']]]
         for name, mdl in trained_models.items():
             pred = mdl.predict(student_data)[0]
-            prob = mdl.predict_proba(student_data)[0][1] * 100
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col1:
-                st.write(f"**{name}**")
-            with col2:
-                if pred == 1:
-                    st.error("⚠️ Қауіпті")
-                else:
-                    st.success("✅ Қауіпсіз")
-            with col3:
-                st.write(f"{prob:.1f}%")
-    
-    # ==========================================
-    # 4. Толық мәлімет
-    # ==========================================
-    with st.expander("📋 Толық мәлімет"):
-        st.dataframe(df[df['аты'] == student], use_container_width=True)
-# ===============================
-# 5. ХАБАР (ТОЛЫҚ)
-# ===============================
+            prob = mdl.predict_proba(student_data)[0][1]*100
+            st.write(f"**{name}**: {'⚠️ Қауіпті' if pred==1 else '✅ Қауіпсіз'} (ықтималдық {prob:.1f}%)")
+
+# ======================== 5. ХАБАР ========================
 elif menu == "📲 Хабар":
-    if st.session_state.role not in ["admin", "teacher"]:
-        st.error("❌ Бұл бөлімге тек мұғалім мен әкімшілік қол жеткізе алады!")
+    if st.session_state.role not in ["admin","teacher"]:
+        st.error("Тек мұғалім мен әкімшілік!")
         st.stop()
-    
     st.title("📲 Ата-анаға хабарлама")
-    student = st.selectbox("Оқушы таңдаңыз", df['аты'])
-    row = df[df['аты'] == student].iloc[0]
-    
+    student = st.selectbox("Оқушы", df['аты'])
+    row = df[df['аты']==student].iloc[0]
     col1, col2, col3 = st.columns(3)
     with col1:
-        if row['орташа балл'] >= 80: st.success("🟢 Үздік деңгей")
-        elif row['орташа балл'] >= 60: st.warning("🟡 Орташа деңгей")
+        if row['орташа балл']>=80: st.success("🟢 Үздік деңгей")
+        elif row['орташа балл']>=60: st.warning("🟡 Орташа деңгей")
         else: st.error("🔴 Қауіпті деңгей")
     with col2: st.metric("Орташа балл", f"{row['орташа балл']:.1f}")
     with col3: st.metric("Қатысу", f"{row['қатысу']}%")
-    st.divider()
-    
-    message = f"""ҚҰРМЕТТІ АТА-АНА!
+    message = f"""ҚҰРМЕТТІ АТА-АНА! Балаңыз: {row['аты']}
+    Орташа балл: {row['орташа балл']:.1f}
+    Қатысу: {row['қатысу']}%
+    Әлсіз пән: {row['ең әлсіз пән']}
+    AI Ұсынысы: {row['AI']}
+    Тапсырма: {row['тапсырма']}"""
+    st.text_area("Хабарлама мәтіні", message, height=300)
+    st.download_button("📥 TXT жүктеу", message, file_name=f"{student}_хабарлама.txt")
 
-Сіздің балаңыз: {row['аты']}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 ОҚУ КӨРСЕТКІШТЕРІ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Орташа балл: {row['орташа балл']:.1f}
-• Қатысу: {row['қатысу']}%
-• Әлсіз пән: {row['ең әлсіз пән']}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🧠 AI ҰСЫНЫС
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{row['AI']}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📚 ТАПСЫРМА
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{row['тапсырма']}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📅 ПӘНДЕР БОЙЫНША БАҒАЛАР
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
-    for s in subjects:
-        message += f"\n• {s}: {row[s]} балл"
-    message += "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nҚұрметпен,\nМектеп әкімшілігі\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    st.text_area("Хабарлама мәтіні", message, height=400)
-    col1, col2 = st.columns(2)
-    with col1:
-        st.download_button("📥 TXT файл ретінде жүктеу", message, file_name=f"{student}_хабарлама.txt", use_container_width=True)
-    with col2:
-        st.markdown(f"📧 Жіберу үшін: `{student.lower()}@school.kz` (көшіріңіз)")
-
-# ===============================
-# ===============================
-# 6. PDF (РӨЛГЕ ҚАРАЙ ФИЛЬТР)
-# ===============================
+# ======================== 6. PDF (рөлге байланысты) ========================
 elif menu == "🧾 PDF":
-    st.title("🧾 PDF есеп шығару")
-    
-    # Рөлге байланысты оқушы таңдау
-    if st.session_state.role in ["parent", "student"]:
-        # Ата-ана немесе оқушы өзінің баласын/өзін ғана көреді
+    st.title("🧾 PDF есеп")
+    if st.session_state.role in ["parent","student"]:
         student = st.session_state.child
-        st.info(f"📌 Сіз **{student}** оқушысының есебін жүктей аласыз.")
-        rows = df[df['аты'] == student]
-        if rows.empty:
-            st.error(f"❌ {student} оқушысы туралы деректер табылмады.")
-            st.stop()
-        row = rows.iloc[0]
     else:
-        # Admin немесе teacher барлық оқушыны таңдай алады
-        student = st.selectbox("👨‍🎓 Оқушы таңдаңыз", df['аты'])
-        row = df[df['аты'] == student].iloc[0]
-    
-    # Негізгі мәліметтер
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("📈 Орташа балл", f"{row['орташа балл']:.1f}")
-    with col2:
-        st.metric("📅 Қатысу", f"{row['қатысу']}%")
-    with col3:
-        st.metric("📚 Әлсіз пән", row['ең әлсіз пән'])
-    
-    st.info(f"💡 {row['AI'][:100]}...")
-    
-    if st.button("📄 PDF жасау", type="primary", use_container_width=True):
-        with st.spinner("⏳ PDF дайындалуда..."):
-            # --- График 1: Пәндер бойынша балл ---
-            chart1_path = "chart1.png"
-            plt.figure(figsize=(6, 4))
+        student = st.selectbox("Оқушы", df['аты'])
+    row = df[df['аты']==student].iloc[0]
+    col1,col2,col3 = st.columns(3)
+    with col1: st.metric("Орташа балл", f"{row['орташа балл']:.1f}")
+    with col2: st.metric("Қатысу", f"{row['қатысу']}%")
+    with col3: st.metric("Әлсіз пән", row['ең әлсіз пән'])
+    if st.button("📄 PDF жасау"):
+        with st.spinner("PDF дайындалуда..."):
+            # Графиктер
+            fig, ax = plt.subplots(figsize=(6,4))
             scores = [row[s] for s in subjects]
-            colors_bar = ['#4CAF50' if x >= 70 else '#FFC107' if x >= 50 else '#F44336' for x in scores]
-            plt.bar(subjects, scores, color=colors_bar)
-            plt.axhline(y=60, color='red', linestyle='--', alpha=0.7)
-            plt.ylim(0, 100)
-            plt.title("Пәндер бойынша балл")
+            colors = ['#4CAF50' if x>=70 else '#FFC107' if x>=50 else '#F44336' for x in scores]
+            ax.bar(subjects, scores, color=colors)
+            ax.axhline(60, color='red', linestyle='--')
+            ax.set_ylim(0,100)
             plt.xticks(rotation=45)
             plt.tight_layout()
-            plt.savefig(chart1_path)
-            plt.close()
-            
-            # --- График 2: Прогресс ---
-            chart2_path = "chart2.png"
-            plt.figure(figsize=(6, 4))
-            plt.plot(['Өткен ай', 'Қазір'], [row['өткен'], row['орташа балл']], marker='o', linewidth=2, markersize=8)
-            plt.fill_between(['Өткен ай', 'Қазір'], [row['өткен'], row['орташа балл']], alpha=0.3)
-            plt.ylim(0, 100)
-            plt.title("Прогресс")
-            plt.grid(True, alpha=0.3)
-            plt.tight_layout()
-            plt.savefig(chart2_path)
-            plt.close()
-            
-            # --- PDF құру ---
+            plt.savefig("chart1.png"); plt.close()
+            fig2, ax2 = plt.subplots(figsize=(6,4))
+            ax2.plot(['Өткен ай','Қазір'], [row['өткен'], row['орташа балл']], marker='o')
+            ax2.set_ylim(0,100)
+            plt.savefig("chart2.png"); plt.close()
             doc = SimpleDocTemplate("report.pdf", pagesize=letter)
             styles = getSampleStyleSheet()
-            if FONT_AVAILABLE:
-                title_style = ParagraphStyle('title', parent=styles['Normal'], fontName='DejaVu', fontSize=18, textColor=colors.darkblue, alignment=1, spaceAfter=10)
-                header_style = ParagraphStyle('header', parent=styles['Normal'], fontName='DejaVu', fontSize=14, spaceAfter=6)
-                normal_style = ParagraphStyle('normal', parent=styles['Normal'], fontName='DejaVu', fontSize=11, leading=14)
-            else:
-                title_style = styles['Title']
-                header_style = styles['Heading1']
-                normal_style = styles['Normal']
-            
-            content = []
-            content.append(Paragraph("SMART SCHOOL SYSTEM", title_style))
-            content.append(Paragraph("ОҚУШЫ ЕСЕБІ", title_style))
-            content.append(Spacer(1, 15))
-            content.append(Paragraph(f"Аты: {row['аты']}", normal_style))
-            content.append(Paragraph(f"Орташа балл: {row['орташа балл']:.1f}", normal_style))
-            content.append(Paragraph(f"Қатысу: {row['қатысу']}%", normal_style))
-            content.append(Spacer(1, 10))
-            content.append(Paragraph("🧠 AI ҰСЫНЫСЫ", header_style))
-            content.append(Paragraph(row['AI'], normal_style))
-            content.append(Paragraph(f"Тапсырма: {row['тапсырма']}", normal_style))
-            content.append(Spacer(1, 15))
-            
-            # Бағалар кестесі
-            table_data = [["Пән", "Балл", "Деңгей"]]
-            for s in subjects:
-                score = row[s]
-                level = "✅ Жақсы" if score >= 70 else "⚠️ Орташа" if score >= 50 else "❌ Әлсіз"
-                table_data.append([s, str(score), level])
-            table = Table(table_data)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
-                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                ('GRID', (0,0), (-1,-1), 1, colors.black),
-            ]))
-            content.append(Paragraph("📋 Бағалар кестесі", header_style))
-            content.append(table)
-            content.append(Spacer(1, 15))
-            content.append(Paragraph("📊 Пәндер графигі", header_style))
-            content.append(Image(chart1_path, width=400, height=250))
-            content.append(Spacer(1, 15))
-            content.append(Paragraph("📈 Прогресс графигі", header_style))
-            content.append(Image(chart2_path, width=400, height=250))
+            content = [Paragraph("SMART SCHOOL SYSTEM", styles['Title']), Paragraph(f"Оқушы: {row['аты']}", styles['Normal']),
+                       Paragraph(f"Орташа балл: {row['орташа балл']:.1f}", styles['Normal']),
+                       Paragraph(f"Қатысу: {row['қатысу']}%", styles['Normal']),
+                       Image("chart1.png", width=400, height=250), Image("chart2.png", width=400, height=250)]
             doc.build(content)
-        
-        # PDF жүктеу
-        with open("report.pdf", "rb") as f:
-            pdf_bytes = f.read()
-        st.success("✅ PDF сәтті құрылды!")
-        st.download_button(
-            "📥 PDF жүктеу",
-            pdf_bytes,
-            file_name=f"{student}_есеп.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
-# ===============================
-# 7. РЕЙТИНГ (ТОЛЫҚ)
-# ===============================
-elif menu == "🏆 Рейтинг":
-    st.title("🏆 Оқушылар рейтингі")
-    df_sorted = df.sort_values('орташа балл', ascending=False).reset_index(drop=True)
-    df_sorted['Рейтинг'] = df_sorted.index + 1
-    
-    st.subheader("🥇 Жүлдегерлер")
-    col1, col2, col3 = st.columns(3)
-    medals = ["🥇", "🥈", "🥉"]
-    colors_medal = ["#FFD700", "#C0C0C0", "#CD7F32"]
-    for i, col in enumerate([col1, col2, col3]):
-        if i < len(df_sorted):
-            with col:
-                st.markdown(f"<div style='text-align:center; padding:20px; background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:15px;'><div style='font-size:48px;'>{medals[i]}</div><div style='font-size:20px; font-weight:bold;'>{df_sorted.iloc[i]['аты']}</div><div style='font-size:28px; color:{colors_medal[i]};'>{df_sorted.iloc[i]['орташа балл']:.1f}</div><div style='font-size:12px; opacity:0.7;'>балл</div></div>", unsafe_allow_html=True)
-    
-    st.divider()
-    st.subheader("📊 Рейтинг графигі")
-    fig, ax = plt.subplots(figsize=(12, 5))
-    colors_bar = ['#4CAF50' if x >= 80 else '#FFC107' if x >= 60 else '#F44336' for x in df_sorted['орташа балл']]
-    bars = ax.bar(df_sorted['аты'], df_sorted['орташа балл'], color=colors_bar)
-    ax.axhline(y=60, color='red', linestyle='--', alpha=0.7, label='Қауіп шегі (60)')
-    ax.axhline(y=80, color='green', linestyle='--', alpha=0.7, label='Үздік шегі (80)')
-    ax.set_ylim(0, 100)
-    ax.set_ylabel("Орташа балл")
-    ax.set_title("Оқушылар рейтингі")
-    ax.legend()
-    for bar, val in zip(bars, df_sorted['орташа балл']):
-        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, f'{val:.1f}', ha='center', fontsize=9)
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
-    
-    st.divider()
-    st.subheader("📋 Толық рейтинг кестесі")
-    def get_medal_emoji(rank):
-        if rank == 1: return "🥇"
-        elif rank == 2: return "🥈"
-        elif rank == 3: return "🥉"
-        return "📌"
-    df_sorted['Орны'] = df_sorted['Рейтинг'].apply(get_medal_emoji)
-    display_df = df_sorted[['Орны', 'Рейтинг', 'аты', 'орташа балл', 'ең әлсіз пән', 'қатысу']]
-    display_df.columns = ['Орны', 'Рейтинг', 'Аты', 'Орташа балл', 'Әлсіз пән', 'Қатысу']
-    st.dataframe(display_df, use_container_width=True)
-    
-    st.divider()
-    col1, col2, col3, col4 = st.columns(4)
-    with col1: st.metric("📊 Ең жоғары балл", f"{df['орташа балл'].max():.1f}")
-    with col2: st.metric("📉 Ең төмен балл", f"{df['орташа балл'].min():.1f}")
-    with col3: st.metric("📈 Медиана", f"{df['орташа балл'].median():.1f}")
-    with col4: st.metric("📊 Стандартты ауытқу", f"{df['орташа балл'].std():.1f}")
+        with open("report.pdf","rb") as f: st.download_button("📥 PDF жүктеу", f.read(), file_name=f"{student}_есеп.pdf")
 
-# ===============================
-# 8. КҮНТІЗБЕ
-# ===============================
+# ======================== 7. РЕЙТИНГ ========================
+elif menu == "🏆 Рейтинг":
+    st.title("🏆 Рейтинг")
+    df_sorted = df.sort_values('орташа балл', ascending=False).reset_index(drop=True)
+    fig = px.bar(df_sorted, x='аты', y='орташа балл', color='орташа балл', color_continuous_scale=['#F44336','#FFC107','#4CAF50'], text='орташа балл')
+    fig.add_hline(y=60, line_dash="dash", line_color="red")
+    fig.add_hline(y=80, line_dash="dash", line_color="green")
+    fig.update_layout(yaxis_range=[0,100])
+    st.plotly_chart(fig, use_container_width=True)
+    st.dataframe(df_sorted[['аты','орташа балл','ең әлсіз пән','қатысу']], use_container_width=True)
+
+# ======================== 8. КҮНТІЗБЕ ========================
 elif menu == "📅 Күнтізбе":
     st.title("📅 Мектеп күнтізбесі")
-    
-    if "calendar_events" not in st.session_state:
-        st.session_state.calendar_events = [
-            {"Күні": "2025-05-15", "Оқиға": "Облыстық олимпиада", "Түрі": "🏆 Жарыс"},
-            {"Күні": "2025-05-20", "Оқиға": "Ата-аналар жиналысы", "Түрі": "👪 Жиналыс"},
-            {"Күні": "2025-06-01", "Оқиға": "Жазғы каникул басталуы", "Түрі": "🌴 Каникул"}
-        ]
-    
-    events_df = pd.DataFrame(st.session_state.calendar_events)
-    st.dataframe(events_df, use_container_width=True)
-    
-    if st.session_state.role in ["admin", "teacher"]:
-        with st.expander("➕ Жаңа оқиға қосу"):
-            with st.form("add_event"):
-                col1, col2 = st.columns(2)
-                with col1: new_date = st.date_input("Күні", value=datetime.today())
-                with col2: new_event = st.text_input("Оқиға атауы")
-                event_type = st.selectbox("Түрі", ["🏆 Жарыс", "👪 Жиналыс", "🌴 Каникул", "📚 Емтихан"])
+    if "calendar" not in st.session_state:
+        st.session_state.calendar = [{"Күні":"2025-05-15","Оқиға":"Олимпиада","Түрі":"🏆"}]
+    st.dataframe(pd.DataFrame(st.session_state.calendar), use_container_width=True)
+    if st.session_state.role in ["admin","teacher"]:
+        with st.expander("➕ Оқиға қосу"):
+            with st.form("add_cal"):
+                date = st.date_input("Күні")
+                event = st.text_input("Оқиға")
+                t = st.selectbox("Түрі", ["🏆 Жарыс","👪 Жиналыс","🌴 Каникул"])
                 if st.form_submit_button("Қосу"):
-                    st.session_state.calendar_events.append({
-                        "Күні": str(new_date),
-                        "Оқиға": new_event,
-                        "Түрі": event_type
-                    })
-                    st.success("Оқиға қосылды!")
+                    st.session_state.calendar.append({"Күні":str(date),"Оқиға":event,"Түрі":t})
                     st.rerun()
 
-# ===============================
-# 9. ҚАТЫСУ (КҮНДЕЛІКТІ ЖУРНАЛ)
-# ===============================
+# ======================== 9. ҚАТЫСУ ========================
 elif menu == "📋 Қатысу":
-    if st.session_state.role not in ["admin", "teacher"]:
-        st.error("❌ Бұл бөлімге тек мұғалім мен әкімшілік қол жеткізе алады!")
+    if st.session_state.role not in ["admin","teacher"]:
+        st.error("Тек мұғалім мен әкімшілік!")
         st.stop()
-    
     st.title("📋 Күнделікті қатысу журналы")
-    
-    if "attendance_log" not in st.session_state:
-        st.session_state.attendance_log = {}
-    
+    if "attendance" not in st.session_state:
+        st.session_state.attendance = {}
     date = st.date_input("Күні", value=datetime.today())
     date_str = str(date)
-    
     st.subheader(f"📌 {date} күнгі қатысу")
-    
-    attendance_status = {}
+    status = {}
     cols = st.columns(3)
     for i, student in enumerate(df['аты']):
-        with cols[i % 3]:
-            default = st.session_state.attendance_log.get(date_str, {}).get(student, True)
-            attendance_status[student] = st.checkbox(student, value=default)
-    
-    if st.button("💾 Қатысуды сақтау", type="primary"):
-        if date_str not in st.session_state.attendance_log:
-            st.session_state.attendance_log[date_str] = {}
-        for student, status in attendance_status.items():
-            st.session_state.attendance_log[date_str][student] = status
-        st.success(f"{date} күнгі қатысу сақталды!")
-    
-    with st.expander("📊 Қатысу статистикасы"):
-        if st.session_state.attendance_log:
-            all_dates = list(st.session_state.attendance_log.keys())
-            selected_date = st.selectbox("Күнді таңдаңыз", all_dates)
-            if selected_date:
-                data = st.session_state.attendance_log[selected_date]
-                att_df = pd.DataFrame([{"Оқушы": k, "Қатысу": "✅" if v else "❌"} for k, v in data.items()])
-                st.dataframe(att_df, use_container_width=True)
-                absent = sum(1 for v in data.values() if not v)
-                st.metric("Келмеген оқушылар саны", absent)
-        else:
-            st.info("Әлі қатысу деректері жоқ.")
+        with cols[i%3]:
+            default = st.session_state.attendance.get(date_str, {}).get(student, True)
+            status[student] = st.checkbox(student, value=default)
+    if st.button("💾 Сақтау"):
+        if date_str not in st.session_state.attendance:
+            st.session_state.attendance[date_str] = {}
+        for s, v in status.items():
+            st.session_state.attendance[date_str][s] = v
+        st.success("Сақталды!")
+    with st.expander("📊 Статистика"):
+        if st.session_state.attendance:
+            sel = st.selectbox("Күнді таңда", list(st.session_state.attendance.keys()))
+            data = st.session_state.attendance[sel]
+            att_df = pd.DataFrame([{"Оқушы":k,"Қатысу":"✅" if v else "❌"} for k,v in data.items()])
+            st.dataframe(att_df)
+            absent = sum(1 for v in data.values() if not v)
+            st.metric("Келмегендер", absent)
 
-# ===============================
-# 10. ПАЙДАЛАНУШЫЛАРДЫ БАСҚАРУ (ТЕК ADMIN)
-# ===============================
-elif menu == "👥 Пайдаланушылар":
-    if st.session_state.role != "admin":
-        st.error("❌ Бұл бөлімге тек әкімшілік қол жеткізе алады!")
-        st.stop()
-    
-    st.title("👥 Пайдаланушыларды басқару")
-    
-    users_df = pd.DataFrame([
-        {"Логин": k, "Аты": v["name"], "Рөл": v["role"], "Баласы": v.get("child", "-")}
-        for k, v in users.items()
-    ])
-    st.dataframe(users_df, use_container_width=True)
-    
-    st.divider()
-    st.subheader("➕ Жаңа пайдаланушы қосу")
-    with st.form("add_user"):
-        new_login = st.text_input("Логин")
-        new_name = st.text_input("Толық аты")
-        new_password = st.text_input("Құпия сөз", type="password")
-        new_role = st.selectbox("Рөл", ["admin", "teacher", "parent", "student"])
-        child_name = ""
-        if new_role in ["parent", "student"]:
-            child_name = st.text_input("Баланың аты (тек ата-ана/оқушы үшін)")
-        
-        if st.form_submit_button("Қосу"):
-            if new_login in users:
-                st.error("Бұл логин бос емес!")
-            else:
-                user_data = {"password": new_password, "role": new_role, "name": new_name}
-                if child_name:
-                    user_data["child"] = child_name
-                users[new_login] = user_data
-                st.success(f"{new_login} пайдаланушысы қосылды!")
-                st.rerun()
-    
-    st.divider()
-    st.subheader("🗑 Пайдаланушыны жою")
-    user_to_delete = st.selectbox("Пайдаланушы таңдаңыз", list(users.keys()))
-    if st.button("Жою", type="secondary"):
-        if user_to_delete == "admin":
-            st.error("admin пайдаланушысын жоюға болмайды!")
-        elif user_to_delete == st.session_state.username:
-            st.error("Өзіңізді жоя алмайсыз!")
-        else:
-            del users[user_to_delete]
-            st.success(f"{user_to_delete} жойылды!")
-            st.rerun()
-# ===============================
-# 11. КІТАПХАНА (электронды кітаптар, оқу материалдары)
-# ===============================
+# ======================== 10. КІТАПХАНА ========================
 elif menu == "📚 Кітапхана":
     st.title("📚 Электронды кітапхана")
-    
-    # Кітапхана деректерін сақтау (демо)
-    if "library_books" not in st.session_state:
-        st.session_state.library_books = [
-            {"Атауы": "Математика 8-сынып", "Авторы": "Әбілқасымов", "Пәні": "Математика", "Түрі": "📘 Оқулық", "Сілтеме": "https://example.com/math8.pdf"},
-            {"Атауы": "Физика есептері", "Авторы": "Төлегенов", "Пәні": "Физика", "Түрі": "📗 Есептер жинағы", "Сілтеме": "https://example.com/physics.pdf"},
-            {"Атауы": "Ағылшын тілі грамматикасы", "Авторы": "Браун", "Пәні": "ағылшын тілі", "Түрі": "📕 Грамматика", "Сілтеме": "https://example.com/english.pdf"},
+    if "library" not in st.session_state:
+        st.session_state.library = [
+            {"Атауы":"Математика 8-сынып","Авторы":"Әбілқасымов","Пәні":"Математика","Сілтеме":"https://example.com/math.pdf"}
         ]
-    
-    # Фильтр
-    col1, col2 = st.columns(2)
-    with col1:
-        subject_filter = st.selectbox("📖 Пән бойынша фильтр", ["Барлығы"] + subjects)
-    with col2:
-        type_filter = st.selectbox("📂 Түрі бойынша фильтр", ["Барлығы", "📘 Оқулық", "📗 Есептер жинағы", "📕 Грамматика", "📙 Тесттер"])
-    
-    # Фильтрлеу
-    filtered_books = st.session_state.library_books
-    if subject_filter != "Барлығы":
-        filtered_books = [b for b in filtered_books if b["Пәні"] == subject_filter]
-    if type_filter != "Барлығы":
-        filtered_books = [b for b in filtered_books if b["Түрі"] == type_filter]
-    
-    if not filtered_books:
-        st.info("Бұл фильтр бойынша ешқандай кітап табылмады.")
-    else:
-        for book in filtered_books:
-            with st.container():
-                st.markdown(f"##### {book['Атауы']}")
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    st.write(f"✍️ {book['Авторы']}  |  {book['Пәні']}  |  {book['Түрі']}")
-                with col3:
-                    st.link_button("📖 Оқу", book["Сілтеме"], use_container_width=True)
-                st.divider()
-    
-    # Жаңа кітап қосу (тек admin/teacher)
-    if st.session_state.role in ["admin", "teacher"]:
-        with st.expander("➕ Жаңа кітап/материал қосу"):
-            with st.form("add_book_form"):
-                title = st.text_input("Кітап атауы")
+    filter_subj = st.selectbox("Пән", ["Барлығы"]+subjects)
+    filtered = st.session_state.library
+    if filter_subj!="Барлығы":
+        filtered = [b for b in filtered if b["Пәні"]==filter_subj]
+    for book in filtered:
+        st.markdown(f"**{book['Атауы']}** – {book['Авторы']} ({book['Пәні']})")
+        st.link_button("📖 Оқу", book["Сілтеме"])
+        st.divider()
+    if st.session_state.role in ["admin","teacher"]:
+        with st.expander("➕ Кітап қосу"):
+            with st.form("add_book"):
+                title = st.text_input("Атауы")
                 author = st.text_input("Авторы")
-                subject = st.selectbox("Пәні", subjects)
-                book_type = st.selectbox("Түрі", ["📘 Оқулық", "📗 Есептер жинағы", "📕 Грамматика", "📙 Тесттер", "📄 Мақала"])
-                link = st.text_input("Сілтеме (URL)")
-                if st.form_submit_button("📥 Қосу"):
-                    if title and link:
-                        st.session_state.library_books.append({
-                            "Атауы": title,
-                            "Авторы": author if author else "Белгісіз",
-                            "Пәні": subject,
-                            "Түрі": book_type,
-                            "Сілтеме": link
-                        })
-                        st.success(f"«{title}» кітапханаға қосылды!")
-                        st.rerun()
-                    else:
-                        st.error("Атауы мен сілтеме міндетті!")
-# ===============================
-# 12. 🧠 НЕЙРОНДЫҚ ЖЕЛІ АРҚЫЛЫ ҰСЫНЫСТАР
-# ===============================
+                subj = st.selectbox("Пәні", subjects)
+                link = st.text_input("Сілтеме")
+                if st.form_submit_button("Қосу"):
+                    st.session_state.library.append({"Атауы":title,"Авторы":author,"Пәні":subj,"Сілтеме":link})
+                    st.rerun()
+
+# ======================== 11. ҰСЫНЫСТАР (нейрондық желі стилі) ========================
 elif menu == "🧠 Ұсыныстар":
-    st.title("🧠 Жасанды интеллект ұсыныстары")
-    st.markdown("Оқушының үлгеріміне қарай, AI арнайы ұсыныстар береді.")
-    
-    # Оқушыны таңдау (рөлге байланысты)
-    if st.session_state.role in ["parent", "student"]:
+    st.title("🧠 AI ұсыныстар")
+    if st.session_state.role in ["parent","student"]:
         student = st.session_state.child
     else:
-        student = st.selectbox("👨‍🎓 Оқушы таңдаңыз", df['аты'])
-    
-    row = df[df['аты'] == student].iloc[0]
-    weak_subject = row['ең әлсіз пән']
-    avg_score = row['орташа балл']
-    
-    st.subheader(f"📊 {student} оқушысының талдауы")
-    col1, col2, col3 = st.columns(3)
-    with col1: st.metric("Орташа балл", f"{avg_score:.1f}")
-    with col2: st.metric("Ең әлсіз пән", weak_subject)
-    with col3: st.metric("Қатысу", f"{row['қатысу']}%")
-    
-    st.divider()
-    
-    # ===== КІТАП ҰСЫНЫСТАРЫ =====
-    st.subheader("📚 Оқуға ұсынылатын кітаптар мен материалдар")
-    
-    # Кітапханадағы кітаптарды пән бойынша сүзу
-    recommended_books = []
-    if "library_books" in st.session_state:
-        for book in st.session_state.library_books:
-            if book["Пәні"] == weak_subject:
-                recommended_books.append(book)
-    
-    if recommended_books:
-        for book in recommended_books[:3]:  # ең көбі 3 кітап
-            st.markdown(f"📖 **{book['Атауы']}** – {book['Авторы']} ({book['Түрі']})")
-            st.link_button("🔗 Сілтеме", book["Сілтеме"], key=f"rec_{book['Атауы']}")
+        student = st.selectbox("Оқушы", df['аты'])
+    row = df[df['аты']==student].iloc[0]
+    st.info(f"**{student}** үшін ұсыныстар:")
+    st.write(f"📌 Ең әлсіз пән: **{row['ең әлсіз пән']}**")
+    st.write("📚 Кітапханадан ұсынылатын кітаптар:")
+    for book in st.session_state.get("library", []):
+        if book["Пәні"] == row['ең әлсіз пән']:
+            st.write(f"- {book['Атауы']} ({book['Авторы']})")
+    st.write("📝 Тапсырмалар: ", row['тапсырма'])
+    if row['орташа балл']<60:
+        st.warning("Қауіп тобында! Ата-анамен кездесу керек.")
+
+# ======================== 12. ПСИХОЛОГИЯ ========================
+elif menu == "😊 Психология":
+    st.title("😊 Психологиялық көңіл-күй мониторингі")
+    if st.session_state.role in ["parent","student"]:
+        student = st.session_state.child
     else:
-        st.info(f"❌ {weak_subject} пәні бойынша әлі кітап жоқ. Кітапханаға материалдар қосыңыз.")
-    
-    st.divider()
-    
-    # ===== ТАПСЫРМА ҰСЫНЫСТАРЫ =====
-    st.subheader("📝 Жеке тапсырмалар ұсынысы")
-    
-    if avg_score < 50:
-        st.error(f"""
-        🔴 **Жедел көмек қажет!**
-        
-        - {weak_subject} пәнінен күнделікті 40 минут жұмыс істеу керек.
-        - Мұғалімнен қосымша сабақ сұрау.
-        - Аптасына 3 рет тест тапсыру.
-        """)
-    elif avg_score < 70:
-        st.warning(f"""
-        🟡 {weak_subject} пәнін жақсарту қажет.
-        
-        **Ұсыныс:**
-        - Күніне 20 минут есеп шығару.
-        - {weak_subject} пәнінен 2-3 есептен тұратын күнделікті тапсырма.
-        """)
-    else:
-        st.success(f"""
-        🟢 Жақсы нәтиже! Деңгейіңізді сақтап, олимпиадаға дайындалуға болады.
-        
-        **Келесі қадамдар:**
-        - {weak_subject} пәнінен тереңдетілген тапсырмалар.
-        - Онлайн олимпиадаларға қатысу.
-        """)
-    
-    st.divider()
-    
-    # ===== ВИДЕО САБАҚ ҰСЫНЫСТАРЫ =====
-    st.subheader("🎥 Видео сабақтар")
-    video_suggestions = {
-        "Математика": "https://www.youtube.com/results?search_query=математика+8+сынып+сабақ",
-        "Физика": "https://www.youtube.com/results?search_query=физика+есептер+шығару",
-        "Информатика": "https://www.youtube.com/results?search_query=информатика+негіздері",
-        "Қазақ тілі": "https://www.youtube.com/results?search_query=қазақ+тілі+грамматика",
-        "Ағылшын тілі": "https://www.youtube.com/results?search_query=ағылшын+тілі+сабақ"
-    }
-    if weak_subject in video_suggestions:
-        st.markdown(f"📺 **{weak_subject}** пәні бойынша бейнесабақтар:")
-        st.link_button("🎬 YouTube-тан іздеу", video_suggestions[weak_subject], use_container_width=True)
-    
-    st.divider()
-    
-    # ===== АНАЛИТИКАЛЫҚ ҰСЫНЫС (ML модель негізінде) =====
-    st.subheader("🤖 ML модель негізіндегі болжам")
-    
-    # Оқушының қазіргі деректерімен қауіп ықтималдығын есептеу
-    student_data = [[row[s] for s in subjects] + [row['қатысу']]]
-    risk_proba = trained_models['Random Forest'].predict_proba(student_data)[0][1] * 100
-    
-    if risk_proba > 70:
-        st.error(f"⚠️ Қауіп ықтималдығы: {risk_proba:.1f}%. Дереу әрекет ету керек!")
-        st.markdown("Ұсыныс: Ата-анамен кездесу, жеке оқу жоспарын құру.")
-    elif risk_proba > 40:
-        st.warning(f"⚠️ Қауіп ықтималдығы: {risk_proba:.1f}%. Назар аудару қажет.")
-        st.markdown("Ұсыныс: Аптасына 2 рет қосымша сабақтар ұйымдастыру.")
-    else:
-        st.success(f"✅ Қауіп ықтималдығы: {risk_proba:.1f}%. Жағдай тұрақты.")
-        st.markdown("Ұсыныс: Жетістікті сақтау үшін осылай жалғастырыңыз.")
+        student = st.selectbox("Оқушы", df['аты'])
+    if "mood_log" not in st.session_state: st.session_state.mood_log = {}
+    if "test_results" not in st.session_state: st.session_state.test_results = {}
+    today = datetime.today().strftime("%Y-%m-%d")
+    st.subheader("📅 Бүгінгі көңіл-күй")
+    moods = {"😊 Керемет":5, "🙂 Жақсы":4, "😐 Қалыпты":3, "😕 Сәл нашар":2, "😢 Өте нашар":1}
+    selected = st.selectbox("Көңіл-күй", list(moods.keys()))
+    if st.button("💾 Сақтау"):
+        if student not in st.session_state.mood_log: st.session_state.mood_log[student] = {}
+        st.session_state.mood_log[student][today] = moods[selected]
+        st.success("Сақталды!")
+    if student in st.session_state.mood_log and st.session_state.mood_log[student]:
+        mood_df = pd.DataFrame(list(st.session_state.mood_log[student].items()), columns=['Күні','Деңгей'])
+        mood_df['Күні'] = pd.to_datetime(mood_df['Күні'])
+        mood_df = mood_df.sort_values('Күні')
+        fig = px.line(mood_df, x='Күні', y='Деңгей', markers=True, title=f"{student} көңіл-күй динамикасы")
+        fig.update_layout(yaxis_range=[1,5])
+        st.plotly_chart(fig, use_container_width=True)
+    st.subheader("📝 Стресс тесті")
+    with st.form("stress_test"):
+        q1 = st.slider("Қобалжу, мазасыздық",0,4,0)
+        q2 = st.slider("Күйзеліс, шамадан тыс жүктеме",0,4,0)
+        q3 = st.slider("Ұйқының бұзылуы",0,4,0)
+        q4 = st.slider("Назарды шоғырландыру қиындығы",0,4,0)
+        if st.form_submit_button("Тест тапсыру"):
+            total = q1+q2+q3+q4
+            if total<=4: level="🟢 Төмен стресс"
+            elif total<=8: level="🟡 Орташа стресс"
+            else: level="🔴 Жоғары стресс"
+            st.success(f"Нәтиже: {total}/16 – {level}")
+            if student not in st.session_state.test_results: st.session_state.test_results[student] = {}
+            st.session_state.test_results[student][today] = {"test":"stress","score":total,"level":level}
+    st.subheader("💡 Ұсыныстар")
+    if student in st.session_state.mood_log and st.session_state.mood_log[student]:
+        last = list(st.session_state.mood_log[student].values())[-1]
+        if last<=2: st.warning("Көңіл-күй төмен. Демалуға уақыт бөліңіз.")
+        elif last==3: st.info("Қалыпты күй. Күнделікті режимді сақтаңыз.")
+        else: st.success("Көңіл-күй жақсы! Осылай жалғастырыңыз.")
+    if st.session_state.role in ["admin","teacher"]:
+        with st.expander("👥 Жалпы статистика"):
+            all_moods = []
+            for s, log in st.session_state.mood_log.items():
+                for date, val in log.items():
+                    all_moods.append({"Оқушы":s,"Көңіл-күй":val})
+            if all_moods:
+                fig2 = px.histogram(pd.DataFrame(all_moods), x='Көңіл-күй', nbins=5)
+                st.plotly_chart(fig2, use_container_width=True)
+
+# ======================== 13. ПАЙДАЛАНУШЫЛАР (тек admin) ========================
+elif menu == "👥 Пайдаланушылар":
+    if st.session_state.role != "admin":
+        st.error("Тек әкімшілік!")
+        st.stop()
+    st.title("👥 Пайдаланушыларды басқару")
+    users_df = pd.DataFrame([{"Логин":k,"Аты":v["name"],"Рөл":v["role"],"Баласы":v.get("child","-")} for k,v in users.items()])
+    st.dataframe(users_df, use_container_width=True)
+    with st.form("add_user"):
+        login = st.text_input("Логин")
+        name = st.text_input("Аты")
+        pwd = st.text_input("Құпия сөз", type="password")
+        role = st.selectbox("Рөл", ["admin","teacher","parent","student"])
+        child = ""
+        if role in ["parent","student"]:
+            child = st.text_input("Баланың аты")
+        if st.form_submit_button("Қосу"):
+            if login in users: st.error("Логин бос емес!")
+            else:
+                users[login] = {"password":pwd,"role":role,"name":name}
+                if child: users[login]["child"] = child
+                st.success("Қосылды!")
+                st.rerun()
+    del_user = st.selectbox("Жоятын пайдаланушы", list(users.keys()))
+    if st.button("Жою") and del_user != "admin":
+        del users[del_user]
+        st.rerun()
