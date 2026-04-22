@@ -76,6 +76,7 @@ if st.sidebar.button("🚪 Шығу", use_container_width=True):
 # MENU
 # -------------------------------
 st.sidebar.title("📚 Smart School Portal")
+# МЕНЮ (sidebar бөлімі)
 menu = st.sidebar.radio(
     "Бөлімдер:", 
     ["🏠 Журнал", "📊 Аналитика", "🧠 Болжау", "👤 Профиль", "📲 Хабар", "🧾 PDF", "🏆 Рейтинг"],
