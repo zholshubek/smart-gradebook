@@ -4,6 +4,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.model_selection import cross_val_score
+from datetime import datetime
 
 # PDF үшін импорттар
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
@@ -12,12 +16,6 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-
-# sklearn импорттары
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.metrics import accuracy_score, classification_report
-from sklearn.model_selection import cross_val_score   # <--- ҚОСЫЛДЫ
 
 # Шрифтті тіркеу
 try:
@@ -47,16 +45,25 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------
-
-# LOGIN бөлімінің алдына қосыңыз
+# ПАЙДАЛАНУШЫЛАР (рөлдермен)
+# -------------------------------
 users = {
-    "admin": {"password": "1234", "role": "admin", "fullname": "Әкімші"},
-    "teacher": {"password": "1111", "role": "teacher", "fullname": "Мұғалім"},
-    "parent_asan": {"password": "2222", "role": "parent", "fullname": "Асанның ата-анасы", "child": "Асан"},
-    "student_asan": {"password": "3333", "role": "student", "fullname": "Асан", "child": "Асан"}
+    "admin": {"password": "1234", "role": "admin", "name": "Әкімші"},
+    "teacher": {"password": "1111", "role": "teacher", "name": "Мұғалім"},
+    "parent_asan": {"password": "2222", "role": "parent", "name": "Асанның ата-анасы", "child": "Асан"},
+    "student_asan": {"password": "3333", "role": "student", "name": "Асан", "child": "Асан"}
 }
 
+# Сессияны бастау
+if "login" not in st.session_state:
+    st.session_state.login = False
+    st.session_state.role = None
+    st.session_state.username = None
+    st.session_state.child = None
 
+# -------------------------------
+# LOGIN
+# -------------------------------
 if not st.session_state.login:
     st.title("🔐 Жүйеге кіру")
     col1, col2, col3 = st.columns([1,2,1])
@@ -66,45 +73,42 @@ if not st.session_state.login:
         if st.button("Кіру", use_container_width=True):
             if u in users and users[u]["password"] == p:
                 st.session_state.login = True
-                st.session_state.username = u
                 st.session_state.role = users[u]["role"]
-                st.session_state.fullname = users[u]["fullname"]
+                st.session_state.username = users[u]["name"]
                 if "child" in users[u]:
                     st.session_state.child = users[u]["child"]
                 st.rerun()
             else:
                 st.error("Қате логин немесе құпия сөз!")
     st.stop()
-# МЕНЮДЫ рөлге қарай құру
-if st.session_state.role == "admin":
-    menu_options = ["🏠 Журнал", "📊 Аналитика", "🧠 Болжау", "👤 Профиль", "📲 Хабар", "🧾 PDF", "🏆 Рейтинг", "📅 Күнтізбе", "📋 Қатысу", "👥 Пайдаланушылар"]
-elif st.session_state.role == "teacher":
-    menu_options = ["🏠 Журнал", "📊 Аналитика", "🧠 Болжау", "📲 Хабар", "📋 Қатысу", "📅 Күнтізбе"]
-elif st.session_state.role == "parent":
-    # Ата-ана тек өз баласының профилін көреді
-    menu_options = ["👤 Профиль", "📊 Аналитика", "📲 Хабар", "🏆 Рейтинг"]
-elif st.session_state.role == "student":
-    menu_options = ["👤 Профиль", "📊 Аналитика", "🏆 Рейтинг"]
-else:
-    menu_options = ["🏠 Журнал"]
 
-menu = st.sidebar.radio("Бөлімдер:", menu_options, index=0)
-
-
+# Шығу батырмасы
 if st.sidebar.button("🚪 Шығу", use_container_width=True):
     st.session_state.login = False
+    st.session_state.role = None
+    st.session_state.username = None
+    st.session_state.child = None
     st.rerun()
 
 # -------------------------------
-# MENU
+# MENU (рөлге қарай көрсету)
 # -------------------------------
 st.sidebar.title("📚 Smart School Portal")
-menu = st.sidebar.radio(
-    "Бөлімдер:", 
-    ["🏠 Журнал", "📊 Аналитика", "🧠 Болжау", "👤 Профиль", "📲 Хабар", "🧾 PDF", "🏆 Рейтинг",
-     "📅 Күнтізбе", "📋 Қатысу", "👥 Пайдаланушылар"],  # жаңалары
-    index=0
-)
+st.sidebar.write(f"**Қош келдіңіз, {st.session_state.username}!**")
+st.sidebar.write(f"Рөл: {st.session_state.role}")
+
+# Негізгі меню элементтері
+menu_items = ["🏠 Журнал", "📊 Аналитика", "🧠 Болжау", "👤 Профиль", "📲 Хабар", "🧾 PDF", "🏆 Рейтинг"]
+
+# Қосымша элементтер
+extra_items = []
+if st.session_state.role in ["admin", "teacher"]:
+    extra_items.append("📅 Күнтізбе")
+    extra_items.append("📋 Қатысу")
+if st.session_state.role == "admin":
+    extra_items.append("👥 Пайдаланушылар")
+
+menu = st.sidebar.radio("Бөлімдер:", menu_items + extra_items, index=0)
 
 # -------------------------------
 # DATA
@@ -183,13 +187,21 @@ model = trained_models['Random Forest']
 # 1. ЖУРНАЛ
 # ===============================
 if menu == "🏠 Журнал":
+    if st.session_state.role not in ["admin", "teacher", "parent", "student"]:
+        st.error("❌ Бұл бөлімге қол жеткізу мүмкін емес!")
+        st.stop()
+    
     st.title("📊 Оқушылар журналы")
     
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        selected_student = st.selectbox("Оқушы таңда", ["Барлығы"] + list(df['аты']))
-    
-    filtered_df = df if selected_student == "Барлығы" else df[df['аты'] == selected_student]
+    # Рөлге байланысты фильтр
+    if st.session_state.role in ["parent", "student"]:
+        selected_student = st.session_state.child
+        filtered_df = df[df['аты'] == selected_student]
+    else:
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            selected_student = st.selectbox("Оқушы таңда", ["Барлығы"] + list(df['аты']))
+        filtered_df = df if selected_student == "Барлығы" else df[df['аты'] == selected_student]
     
     st.subheader("📊 Орташа балл диаграммасы")
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -217,9 +229,13 @@ if menu == "🏠 Журнал":
     st.dataframe(display_df.style.apply(highlight_row, axis=1), use_container_width=True)
 
 # ===============================
-# 2. АНАЛИТИКА (ТҮЗЕТІЛГЕН)
+# 2. АНАЛИТИКА (ТОЛЫҚ)
 # ===============================
 elif menu == "📊 Аналитика":
+    if st.session_state.role not in ["admin", "teacher"]:
+        st.error("❌ Бұл бөлімге тек мұғалім мен әкімшілік қол жеткізе алады!")
+        st.stop()
+    
     st.title("📊 Аналитика панелі")
     
     col1, col2, col3, col4 = st.columns(4)
@@ -331,7 +347,7 @@ elif menu == "📊 Аналитика":
             st.info("ℹ️ Модельдерді салыстыру мүмкін болмады. Деректер саны жеткіліксіз.")
 
 # ===============================
-# 3. БОЛЖАУ
+# 3. БОЛЖАУ (ТОЛЫҚ)
 # ===============================
 elif menu == "🧠 Болжау":
     st.title("🧠 Ақылды болжау жүйесі")
@@ -341,12 +357,12 @@ elif menu == "🧠 Болжау":
     model_choice = st.selectbox(
         "Қай модельді қолданғыңыз келеді?",
         options=['Random Forest', 'Logistic Regression', 'Gradient Boosting'],
-        help="Әр модельдің өз артықшылықтары бар."
+        help="Әр модельдің өз артықшылықтары бар. Gradient Boosting ең дәл нәтиже береді."
     )
     model_info = {
         'Random Forest': "🌲 Көптеген шешім ағаштарынан тұрады. Орташа дәлдік, жылдам жұмыс.",
-        'Logistic Regression': "📈 Сызықтық теңдеу негізінде жұмыс істейді. Өте жылдам.",
-        'Gradient Boosting': "🎯 Қателерді кезең-кезеңімен түзетеді. Ең дәл нәтиже."
+        'Logistic Regression': "📈 Сызықтық теңдеу негізінде жұмыс істейді. Өте жылдам, бірақ күрделі жағдайларда нашар.",
+        'Gradient Boosting': "🎯 Қателерді кезең-кезеңімен түзетеді. Ең дәл нәтиже, бірақ сәл баяу."
     }
     st.info(model_info[model_choice])
     
@@ -439,18 +455,17 @@ elif menu == "🧠 Болжау":
             st.info("ℹ️ **Ескерту:** Бағалары төмен, бірақ модельдер қауіпсіз деп тұр. Бұл жағдайды қадағалаңыз.")
 
 # ===============================
-# ===============================
-# 4. ПРОФИЛЬ (ТҮЗЕТІЛГЕН)
+# 4. ПРОФИЛЬ (ТОЛЫҚ)
 # ===============================
 elif menu == "👤 Профиль":
+    st.title("👤 Оқушы профилі")
+    
     if st.session_state.role in ["parent", "student"]:
-        # Ата-ана немесе оқушы тек өз баласын/өзін көреді
-        child_name = st.session_state.get("child", st.session_state.fullname)
-        student = child_name
+        student = st.session_state.child
     else:
         student = st.selectbox("Оқушы таңдаңыз", df['аты'])
+    
     row = df[df['аты'] == student].iloc[0]
-    # ... қалған код
     
     col1, col2, col3, col4 = st.columns(4)
     with col1: st.metric("📈 Орташа балл", f"{row['орташа балл']:.1f}")
@@ -505,10 +520,15 @@ elif menu == "👤 Профиль":
     
     with st.expander("📋 Толық мәлімет"):
         st.dataframe(df[df['аты'] == student], use_container_width=True)
+
 # ===============================
-# 5. ХАБАР (толық нұсқа)
+# 5. ХАБАР (ТОЛЫҚ)
 # ===============================
 elif menu == "📲 Хабар":
+    if st.session_state.role not in ["admin", "teacher"]:
+        st.error("❌ Бұл бөлімге тек мұғалім мен әкімшілік қол жеткізе алады!")
+        st.stop()
+    
     st.title("📲 Ата-анаға хабарлама")
     student = st.selectbox("Оқушы таңдаңыз", df['аты'])
     row = df[df['аты'] == student].iloc[0]
@@ -558,7 +578,7 @@ elif menu == "📲 Хабар":
         st.markdown(f"📧 Жіберу үшін: `{student.lower()}@school.kz` (көшіріңіз)")
 
 # ===============================
-# 6. PDF (толық нұсқа)
+# 6. PDF (ТОЛЫҚ)
 # ===============================
 elif menu == "🧾 PDF":
     st.title("🧾 PDF есеп шығару")
@@ -573,7 +593,6 @@ elif menu == "🧾 PDF":
     
     if st.button("📄 PDF жасау", type="primary", use_container_width=True):
         with st.spinner("PDF дайындалуда..."):
-            # Графиктерді сақтау
             chart1_path = "chart1.png"
             plt.figure(figsize=(6, 4))
             scores = [row[s] for s in subjects]
@@ -598,7 +617,6 @@ elif menu == "🧾 PDF":
             plt.savefig(chart2_path)
             plt.close()
             
-            # PDF құру
             doc = SimpleDocTemplate("report.pdf", pagesize=letter)
             styles = getSampleStyleSheet()
             if FONT_AVAILABLE:
@@ -651,7 +669,7 @@ elif menu == "🧾 PDF":
         st.download_button("📥 PDF жүктеу", pdf_bytes, file_name=f"{student}_есеп.pdf", use_container_width=True)
 
 # ===============================
-# 7. РЕЙТИНГ (толық нұсқа)
+# 7. РЕЙТИНГ (ТОЛЫҚ)
 # ===============================
 elif menu == "🏆 Рейтинг":
     st.title("🏆 Оқушылар рейтингі")
@@ -701,104 +719,97 @@ elif menu == "🏆 Рейтинг":
     with col2: st.metric("📉 Ең төмен балл", f"{df['орташа балл'].min():.1f}")
     with col3: st.metric("📈 Медиана", f"{df['орташа балл'].median():.1f}")
     with col4: st.metric("📊 Стандартты ауытқу", f"{df['орташа балл'].std():.1f}")
+
+# ===============================
+# 8. КҮНТІЗБЕ
+# ===============================
 elif menu == "📅 Күнтізбе":
     st.title("📅 Мектеп күнтізбесі")
     
-    # Күнтізбе деректері (мысал)
-    events = pd.DataFrame({
-        "Күні": ["2025-05-15", "2025-05-20", "2025-05-25", "2025-06-01"],
-        "Оқиға": ["Олимпиада", "Ата-аналар жиналысы", "Тоқсан аяқталуы", "Жазғы каникул басталуы"],
-        "Түрі": ["Сайыс", "Жиналыс", "Мерзім", "Каникул"],
-        "Маңыздылық": ["🔴 Жоғары", "🟡 Орташа", "🟢 Төмен", "🟢 Төмен"]
-    })
+    if "calendar_events" not in st.session_state:
+        st.session_state.calendar_events = [
+            {"Күні": "2025-05-15", "Оқиға": "Облыстық олимпиада", "Түрі": "🏆 Жарыс"},
+            {"Күні": "2025-05-20", "Оқиға": "Ата-аналар жиналысы", "Түрі": "👪 Жиналыс"},
+            {"Күні": "2025-06-01", "Оқиға": "Жазғы каникул басталуы", "Түрі": "🌴 Каникул"}
+        ]
     
-    # Күнтізбе көрінісі
-    st.subheader("📆 Келесі оқиғалар")
-    st.dataframe(events, use_container_width=True)
+    events_df = pd.DataFrame(st.session_state.calendar_events)
+    st.dataframe(events_df, use_container_width=True)
     
-    # Қарапайым күнтізбе (streamlit-calendar қосымшасыз)
-    st.subheader("🗓️ Айлық көрініс")
-    today = pd.Timestamp.today()
-    cal_days = pd.date_range(start=today.replace(day=1), periods=35, freq='D')
-    cal_df = pd.DataFrame({"Күн": cal_days})
-    cal_df["Апта күні"] = cal_df["Күн"].dt.day_name()
-    cal_df["Күн_саны"] = cal_df["Күн"].dt.day
-    pivot = cal_df.pivot_table(index=cal_df["Күн"].dt.isocalendar().week, 
-                                columns=cal_df["Күн"].dt.dayofweek, 
-                                values="Күн_саны", aggfunc='first').fillna('')
-    st.dataframe(pivot, use_container_width=True)
-    
-    # Оқиға қосу формасы (тек admin үшін)
-    if st.session_state.get('role') == 'admin':
-        with st.expander("➕ Жаңа оқиға қосу (тек admin)"):
+    if st.session_state.role in ["admin", "teacher"]:
+        with st.expander("➕ Жаңа оқиға қосу"):
             with st.form("add_event"):
-                new_date = st.date_input("Күні")
-                new_event = st.text_input("Оқиға атауы")
-                new_type = st.selectbox("Түрі", ["Сайыс", "Жиналыс", "Мерзім", "Каникул", "Емтихан"])
+                col1, col2 = st.columns(2)
+                with col1: new_date = st.date_input("Күні", value=datetime.today())
+                with col2: new_event = st.text_input("Оқиға атауы")
+                event_type = st.selectbox("Түрі", ["🏆 Жарыс", "👪 Жиналыс", "🌴 Каникул", "📚 Емтихан"])
                 if st.form_submit_button("Қосу"):
-                    st.success("Оқиға қосылды (демо режимде сақталмайды)")
+                    st.session_state.calendar_events.append({
+                        "Күні": str(new_date),
+                        "Оқиға": new_event,
+                        "Түрі": event_type
+                    })
+                    st.success("Оқиға қосылды!")
+                    st.rerun()
+
+# ===============================
+# 9. ҚАТЫСУ (КҮНДЕЛІКТІ ЖУРНАЛ)
+# ===============================
 elif menu == "📋 Қатысу":
-    st.title("📋 Сабаққа қатысуды бақылау")
-    
-    # Рөлдік тексеру (тек мұғалім мен admin)
-    if st.session_state.get('role') not in ['teacher', 'admin']:
-        st.warning("Бұл бөлімге тек мұғалімдер мен әкімшілер кіре алады")
+    if st.session_state.role not in ["admin", "teacher"]:
+        st.error("❌ Бұл бөлімге тек мұғалім мен әкімшілік қол жеткізе алады!")
         st.stop()
     
-    # Күнді таңдау
-    date = st.date_input("Күнді таңдаңыз", pd.Timestamp.today())
-    date_str = date.strftime("%Y-%m-%d")
+    st.title("📋 Күнделікті қатысу журналы")
     
-    # Қатысу деректерін session_state-те сақтау
-    if "attendance" not in st.session_state:
-        st.session_state.attendance = {}
+    if "attendance_log" not in st.session_state:
+        st.session_state.attendance_log = {}
     
-    if date_str not in st.session_state.attendance:
-        # Барлық оқушылардың бастапқы статусы: None (белгіленбеген)
-        st.session_state.attendance[date_str] = {name: None for name in df['аты']}
+    date = st.date_input("Күні", value=datetime.today())
+    date_str = str(date)
     
-    # Кесте түрінде көрсету
-    st.subheader(f"Қатысу журналы - {date.strftime('%d.%m.%Y')}")
-    attendance_data = []
-    for name in df['аты']:
-        status = st.session_state.attendance[date_str].get(name, None)
-        # Radio түймелері арқылы статус таңдау
-        new_status = st.radio(
-            f"{name}",
-            options=["Келді", "Келмеді", "Кешікті", "Үйірте"],
-            index=["Келді", "Келмеді", "Кешікті", "Үйірте"].index(status) if status in ["Келді","Келмеді","Кешікті","Үйірте"] else 0,
-            key=f"att_{date_str}_{name}",
-            horizontal=True
-        )
-        st.session_state.attendance[date_str][name] = new_status
-        attendance_data.append({"Оқушы": name, "Статус": new_status})
+    st.subheader(f"📌 {date} күнгі қатысу")
     
-    # Қатысу көрсеткіштері
-    st.divider()
-    col1, col2, col3 = st.columns(3)
-    status_counts = pd.Series(st.session_state.attendance[date_str].values()).value_counts()
-    with col1:
-        st.metric("✅ Келгендер", status_counts.get("Келді", 0))
-    with col2:
-        st.metric("❌ Келмегендер", status_counts.get("Келмеді", 0))
-    with col3:
-        st.metric("⏰ Кешіккендер", status_counts.get("Кешікті", 0))
+    attendance_status = {}
+    cols = st.columns(3)
+    for i, student in enumerate(df['аты']):
+        with cols[i % 3]:
+            default = st.session_state.attendance_log.get(date_str, {}).get(student, True)
+            attendance_status[student] = st.checkbox(student, value=default)
     
-    # Excel-ге жүктеу
-    if st.button("📥 Қатысу есебін жүктеу"):
-        df_att = pd.DataFrame(attendance_data)
-        df_att.to_excel(f"attendance_{date_str}.xlsx", index=False)
-        st.success("Файл сақталды")
+    if st.button("💾 Қатысуды сақтау", type="primary"):
+        if date_str not in st.session_state.attendance_log:
+            st.session_state.attendance_log[date_str] = {}
+        for student, status in attendance_status.items():
+            st.session_state.attendance_log[date_str][student] = status
+        st.success(f"{date} күнгі қатысу сақталды!")
+    
+    with st.expander("📊 Қатысу статистикасы"):
+        if st.session_state.attendance_log:
+            all_dates = list(st.session_state.attendance_log.keys())
+            selected_date = st.selectbox("Күнді таңдаңыз", all_dates)
+            if selected_date:
+                data = st.session_state.attendance_log[selected_date]
+                att_df = pd.DataFrame([{"Оқушы": k, "Қатысу": "✅" if v else "❌"} for k, v in data.items()])
+                st.dataframe(att_df, use_container_width=True)
+                absent = sum(1 for v in data.values() if not v)
+                st.metric("Келмеген оқушылар саны", absent)
+        else:
+            st.info("Әлі қатысу деректері жоқ.")
+
+# ===============================
+# 10. ПАЙДАЛАНУШЫЛАРДЫ БАСҚАРУ (ТЕК ADMIN)
+# ===============================
 elif menu == "👥 Пайдаланушылар":
-    if st.session_state.get('role') != 'admin':
+    if st.session_state.role != "admin":
         st.error("❌ Бұл бөлімге тек әкімшілік қол жеткізе алады!")
         st.stop()
     
     st.title("👥 Пайдаланушыларды басқару")
     
-    # Қолданыстағы пайдаланушылар кестесі
     users_df = pd.DataFrame([
-        {"Логин": k, "Рөл": v["role"]} for k, v in users.items()
+        {"Логин": k, "Аты": v["name"], "Рөл": v["role"], "Баласы": v.get("child", "-")}
+        for k, v in users.items()
     ])
     st.dataframe(users_df, use_container_width=True)
     
@@ -806,19 +817,33 @@ elif menu == "👥 Пайдаланушылар":
     st.subheader("➕ Жаңа пайдаланушы қосу")
     with st.form("add_user"):
         new_login = st.text_input("Логин")
+        new_name = st.text_input("Толық аты")
         new_password = st.text_input("Құпия сөз", type="password")
         new_role = st.selectbox("Рөл", ["admin", "teacher", "parent", "student"])
+        child_name = ""
         if new_role in ["parent", "student"]:
-            extra = st.text_input("Баланың аты (тек ата-ана/оқушы үшін)")
+            child_name = st.text_input("Баланың аты (тек ата-ана/оқушы үшін)")
+        
         if st.form_submit_button("Қосу"):
-            # Нақты кодта деректерді сақтау керек
-            st.success(f"{new_login} пайдаланушысы қосылды!")
+            if new_login in users:
+                st.error("Бұл логин бос емес!")
+            else:
+                user_data = {"password": new_password, "role": new_role, "name": new_name}
+                if child_name:
+                    user_data["child"] = child_name
+                users[new_login] = user_data
+                st.success(f"{new_login} пайдаланушысы қосылды!")
+                st.rerun()
     
     st.divider()
     st.subheader("🗑 Пайдаланушыны жою")
     user_to_delete = st.selectbox("Пайдаланушы таңдаңыз", list(users.keys()))
     if st.button("Жою", type="secondary"):
-        if user_to_delete == st.session_state.username:
+        if user_to_delete == "admin":
+            st.error("admin пайдаланушысын жоюға болмайды!")
+        elif user_to_delete == st.session_state.username:
             st.error("Өзіңізді жоя алмайсыз!")
         else:
-            st.warning(f"{user_to_delete} жойылды (демо режимде тек көрсетіледі)")
+            del users[user_to_delete]
+            st.success(f"{user_to_delete} жойылды!")
+            st.rerun()
