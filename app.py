@@ -455,15 +455,21 @@ elif menu == "👤 Профиль":
     st.success(f"✅ {row['тапсырма']}")
     
     with st.expander("🔮 Осы оқушыға болжау жасау"):
-        st.markdown("Барлық модельдердің осы оқушы туралы болжамы:")
-        student_data = [[row[s] for s in subjects] + [row['қатысу']]]
-        for name, mdl in trained_models.items():
-            pred = mdl.predict(student_data)[0]
-            prob = mdl.predict_proba(student_data)[0][1] * 100
-            col1, col2, col3 = st.columns([2,1,1])
-            with col1: st.write(f"**{name}**")
-            with col2: st.error("⚠️ Қауіпті") if pred == 1 else st.success("✅ Қауіпсіз")
-            with col3: st.write(f"{prob:.1f}%")
+    st.markdown("Барлық модельдердің осы оқушы туралы болжамы:")
+    student_data = [[row[s] for s in subjects] + [row['қатысу']]]
+    for name, mdl in trained_models.items():
+        pred = mdl.predict(student_data)[0]
+        prob = mdl.predict_proba(student_data)[0][1] * 100
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            st.write(f"**{name}**")
+        with col2:
+            if pred == 1:
+                st.error("⚠️ Қауіпті")
+            else:
+                st.success("✅ Қауіпсіз")
+        with col3:
+            st.write(f"{prob:.1f}%")
     
     with st.expander("📋 Толық мәлімет"):
         st.dataframe(df[df['аты'] == student], use_container_width=True)
