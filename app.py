@@ -12,6 +12,10 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+# sklearn импорттарының қасына мынаны қосыңыз:
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import accuracy_score, classification_report
 
 # Шрифтті тіркеу (қате болса да жұмыс істейді)
 try:
@@ -134,12 +138,26 @@ df['тапсырма'] = df['ең әлсіз пән'] + " пәнінен 10 ес
 df['хабар'] = df['аты'] + "\n" + df['AI']
 
 # -------------------------------
-# ML MODEL
-# -------------------------------
+
+# ML MODELS (БІРНЕШЕ МОДЕЛЬ)
+# ===============================
 X = df[subjects + ['қатысу']]
 y = df['қауіп']
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X, y)
+
+# Барлық модельдерді оқыту
+models = {
+    'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
+    'Logistic Regression': LogisticRegression(random_state=42, max_iter=1000),
+    'Gradient Boosting': GradientBoostingClassifier(n_estimators=100, random_state=42)
+}
+
+trained_models = {}
+for name, model in models.items():
+    model.fit(X, y)
+    trained_models[name] = model
+
+# Негізгі модель (артқа үйлесімділік үшін)
+model = trained_models['Random Forest']
 
 # ===============================
 # 1. ЖУРНАЛ
@@ -299,7 +317,30 @@ elif menu == "📊 Аналитика":
         st.subheader("⚠️ Ең әлсіз 3 оқушы")
         bottom3 = df.nsmallest(3, 'орташа балл')[['аты', 'орташа балл']]
         st.dataframe(bottom3, use_container_width=True)
-
+# ===== МОДЕЛЬДЕРДІҢ ДӘЛДІГІ =====
+with st.expander("🤖 ML Модельдерінің сапасы"):
+    st.subheader("Модельдерді салыстыру")
+    
+    # Кросс-валидация (қарапайым)
+    from sklearn.model_selection import cross_val_score
+    
+    model_comparison = []
+    for name, mdl in trained_models.items():
+        # 5-fold кросс-валидация
+        scores = cross_val_score(mdl, X, y, cv=min(5, len(X)-1))
+        model_comparison.append({
+            "Модель": name,
+            "Орташа дәлдік": f"{scores.mean()*100:.1f}%",
+            "Мин/Макс": f"{scores.min()*100:.1f}% / {scores.max()*100:.1f}%",
+            "Тұрақтылық": "🔴" if scores.std() > 0.15 else "🟡" if scores.std() > 0.08 else "🟢"
+        })
+    
+    st.dataframe(pd.DataFrame(model_comparison), use_container_width=True)
+    
+    # Ең жақсы модельді ұсыну
+    best_model = max(trained_models.keys(), 
+                     key=lambda x: cross_val_score(trained_models[x], X, y, cv=min(5, len(X)-1)).mean())
+    st.success(f"🏆 **Ұсынылатын модель:** {best_model} - ең жоғары дәлдік көрсетті!")
 # ===============================
 # 3. БОЛЖАУ
 # ===============================
@@ -307,6 +348,23 @@ elif menu == "🧠 Болжау":
     st.title("🧠 Ақылды болжау жүйесі")
     st.markdown("Оқушының бағаларын енгізіп, қауіп тобына кіретінін болжаңыз")
     
+    # ===== МОДЕЛЬ ТАҢДАУ =====
+    st.subheader("🤖 Модельді таңдаңыз")
+    model_choice = st.selectbox(
+        "Қай модельді қолданғыңыз келеді?",
+        options=['Random Forest', 'Logistic Regression', 'Gradient Boosting'],
+        help="Әр модельдің өз артықшылықтары бар. Gradient Boosting ең дәл нәтиже береді."
+    )
+    
+    # Модель туралы ақпарат
+    model_info = {
+        'Random Forest': "🌲 Көптеген шешім ағаштарынан тұрады. Орташа дәлдік, жылдам жұмыс.",
+        'Logistic Regression': "📈 Сызықтық теңдеу негізінде жұмыс істейді. Өте жылдам, бірақ күрделі жағдайларда нашар.",
+        'Gradient Boosting': "🎯 Қателерді кезең-кезеңімен түзетеді. Ең дәл нәтиже, бірақ сәл баяу."
+    }
+    st.info(model_info[model_choice])
+    
+    # ===== БАҒАЛАРДЫ ЕНГІЗУ =====
     col1, col2 = st.columns(2)
     
     with col1:
@@ -321,7 +379,7 @@ elif menu == "🧠 Болжау":
     
     input_data = [[math, physics, info, kazakh, english, attendance]]
     
-    # График
+    # ===== ГРАФИК =====
     st.subheader("📊 Енгізілген мәліметтер")
     fig, ax = plt.subplots(figsize=(8, 4))
     bars = ax.bar(subjects, [math, physics, info, kazakh, english])
@@ -333,13 +391,57 @@ elif menu == "🧠 Болжау":
     plt.xticks(rotation=45)
     st.pyplot(fig)
     
+    # ===== БОЛЖАУ =====
     if st.button("🔍 Болжау жасау", type="primary", use_container_width=True):
-        prediction = model.predict(input_data)[0]
-        probability = model.predict_proba(input_data)[0]
+        # Таңдалған модельмен болжау
+        selected_model = trained_models[model_choice]
+        prediction = selected_model.predict(input_data)[0]
+        probability = selected_model.predict_proba(input_data)[0]
         
         st.divider()
         st.subheader("🎯 Болжау нәтижесі")
         
+        # ===== БАРЛЫҚ МОДЕЛЬДЕРДІҢ НӘТИЖЕСІ (салыстыру) =====
+        with st.expander("📊 Барлық модельдердің нәтижелерін салыстыру"):
+            st.markdown("**Әртүрлі модельдердің болжау нәтижелері:**")
+            
+            comparison_data = []
+            for name, mdl in trained_models.items():
+                pred = mdl.predict(input_data)[0]
+                prob = mdl.predict_proba(input_data)[0][1] * 100
+                
+                # Нәтиже эмодзи
+                if pred == 1:
+                    result_emoji = "⚠️ Қауіпті"
+                    result_color = "red"
+                else:
+                    result_emoji = "✅ Қауіпсіз"
+                    result_color = "green"
+                
+                comparison_data.append({
+                    "Модель": name,
+                    "Нәтиже": result_emoji,
+                    "Қауіп ықтималдығы": f"{prob:.1f}%",
+                    "Сенімділік деңгейі": "🔴 Жоғары" if prob > 70 else "🟡 Орташа" if prob > 30 else "🟢 Төмен"
+                })
+            
+            comparison_df = pd.DataFrame(comparison_data)
+            st.dataframe(comparison_df, use_container_width=True)
+            
+            # Консенсус нәтижесі
+            predictions = [mdl.predict(input_data)[0] for mdl in trained_models.values()]
+            consensus = max(set(predictions), key=predictions.count)
+            consensus_percent = (predictions.count(consensus) / len(predictions)) * 100
+            
+            st.markdown("---")
+            if consensus == 1:
+                st.warning(f"🤝 **Модельдер келісімі:** {consensus_percent:.0f}% модельдер 'Қауіпті' деп есептейді")
+            else:
+                st.success(f"🤝 **Модельдер келісімі:** {consensus_percent:.0f}% модельдер 'Қауіпсіз' деп есептейді")
+        
+        st.divider()
+        
+        # ===== НЕГІЗГІ НӘТИЖЕ (таңдалған модель) =====
         col_a, col_b = st.columns(2)
         with col_a:
             if prediction == 1:
@@ -350,14 +452,27 @@ elif menu == "🧠 Болжау":
                 st.markdown("Бұл оқушы қауіп тобына жатпайды.")
         
         with col_b:
-            st.metric("Қауіп ықтималдығы", f"{probability[1]*100:.1f}%")
+            st.metric("📊 Таңдалған модель", model_choice)
+            st.metric("⚠️ Қауіп ықтималдығы", f"{probability[1]*100:.1f}%")
+            
+            # Сенімділік индикаторы
+            confidence = probability[1] if prediction == 1 else probability[0]
+            if confidence > 0.7:
+                st.progress(confidence, text="🔴 Жоғары сенімділік")
+            elif confidence > 0.4:
+                st.progress(confidence, text="🟡 Орташа сенімділік")
+            else:
+                st.progress(confidence, text="🟢 Төмен сенімділік")
         
         st.divider()
         
-        # AI ұсыныс
+        # ===== AI ҰСЫНЫС (кеңейтілген) =====
         st.subheader("🤖 AI ұсынысы")
         avg_score = np.mean([math, physics, info, kazakh, english])
         weakest = subjects[np.argmin([math, physics, info, kazakh, english])]
+        
+        # Барлық модельдердің орташа қауіп ықтималдығы
+        avg_risk = np.mean([mdl.predict_proba(input_data)[0][1] for mdl in trained_models.values()]) * 100
         
         if avg_score < 50:
             st.error(f"""
@@ -365,11 +480,13 @@ elif menu == "🧠 Болжау":
             
             - Әлсіз пән: **{weakest}**
             - Орташа балл: {avg_score:.1f}
+            - Модельдердің орташа қауіп бағасы: {avg_risk:.1f}%
             
             **Ұсыныстар:**
             - Жеке мұғаліммен қосымша сабақ
             - Ата-анамен кездесу
             - Күнделікті оқу жоспары
+            - Қатысуды арттыру шаралары
             """)
         elif avg_score < 70:
             st.warning(f"""
@@ -377,6 +494,7 @@ elif menu == "🧠 Болжау":
             
             - Әлсіз пән: **{weakest}**
             - Орташа балл: {avg_score:.1f}
+            - Модельдердің орташа қауіп бағасы: {avg_risk:.1f}%
             
             **Ұсыныстар:**
             - {weakest} пәніне көбірек уақыт бөлу
@@ -388,12 +506,19 @@ elif menu == "🧠 Болжау":
             🟢 **Жақсы деңгей!**
             
             - Орташа балл: {avg_score:.1f}
+            - Модельдердің орташа қауіп бағасы: {avg_risk:.1f}%
             
             **Ұсыныстар:**
             - Жетістігін сақтау
             - Олимпиадаға дайындалу
             - Тереңдетілген бағдарлама
             """)
+        
+        # ===== ЕСКЕРТУ =====
+        if avg_risk > 70 and avg_score >= 70:
+            st.warning("⚠️ **Қызық жағдай:** Бағалары жақсы, бірақ модельдер қауіпті болжайды. Қатысуды тексеріңіз!")
+        elif avg_risk < 30 and avg_score < 60:
+            st.info("ℹ️ **Ескерту:** Бағалары төмен, бірақ модельдер қауіпсіз деп тұр. Бұл жағдайды қадағалаңыз.")
 
 # ===============================
 # 4. ПРОФИЛЬ
@@ -451,6 +576,27 @@ elif menu == "👤 Профиль":
     # Толық мәлімет
     with st.expander("📋 Толық мәлімет"):
         st.dataframe(df[df['аты'] == student], use_container_width=True)
+
+# ===== ЖЕКЕ ОҚУШЫҒА БОЛЖАУ =====
+with st.expander("🔮 Осы оқушыға болжау жасау"):
+    st.markdown("Барлық модельдердің осы оқушы туралы болжамы:")
+    
+    student_data = [[row[s] for s in subjects] + [row['қатысу']]]
+    
+    for name, mdl in trained_models.items():
+        pred = mdl.predict(student_data)[0]
+        prob = mdl.predict_proba(student_data)[0][1] * 100
+        
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            st.write(f"**{name}**")
+        with col2:
+            if pred == 1:
+                st.error("⚠️ Қауіпті")
+            else:
+                st.success("✅ Қауіпсіз")
+        with col3:
+            st.write(f"{prob:.1f}%")
 
 # ===============================
 # 5. ХАБАР
