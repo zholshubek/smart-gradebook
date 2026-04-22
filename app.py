@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from datetime import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import GradientBoostingClassifier
@@ -455,11 +456,13 @@ elif menu == "🧠 Болжау":
             st.info("ℹ️ **Ескерту:** Бағалары төмен, бірақ модельдер қауіпсіз деп тұр. Бұл жағдайды қадағалаңыз.")
 
 # ===============================
-# 4. ПРОФИЛЬ (ТОЛЫҚ)
+# ===============================
+# 4. ПРОФИЛЬ (ТОЛЫҚ + ПОРТФОЛИО + ЧАТ)
 # ===============================
 elif menu == "👤 Профиль":
     st.title("👤 Оқушы профилі")
     
+    # Рөлге қарай оқушы таңдау
     if st.session_state.role in ["parent", "student"]:
         student = st.session_state.child
     else:
@@ -467,6 +470,7 @@ elif menu == "👤 Профиль":
     
     row = df[df['аты'] == student].iloc[0]
     
+    # Негізгі KPI
     col1, col2, col3, col4 = st.columns(4)
     with col1: st.metric("📈 Орташа балл", f"{row['орташа балл']:.1f}")
     with col2: st.metric("📅 Қатысу", f"{row['қатысу']}%")
@@ -474,6 +478,7 @@ elif menu == "👤 Профиль":
     with col4: st.metric("📚 Әлсіз пән", row['ең әлсіз пән'])
     st.divider()
     
+    # Пәндер графигі
     st.subheader("📊 Пәндер бойынша нәтиже")
     fig, ax = plt.subplots(figsize=(8, 4))
     scores = [row[s] for s in subjects]
@@ -488,6 +493,7 @@ elif menu == "👤 Профиль":
     plt.xticks(rotation=45)
     st.pyplot(fig)
     
+    # Прогресс
     st.subheader("📈 Прогресс (өткен ай vs қазір)")
     fig2, ax2 = plt.subplots(figsize=(6, 4))
     ax2.plot(['Өткен ай', 'Қазір'], [row['өткен'], row['орташа балл']], marker='o', linewidth=2, markersize=10)
@@ -496,11 +502,98 @@ elif menu == "👤 Профиль":
     ax2.grid(True, alpha=0.3)
     st.pyplot(fig2)
     
+    # AI ұсыныс
     st.subheader("🧠 AI талдау және ұсыныс")
     st.info(row['AI'])
     st.subheader("📚 Ұсынылған тапсырма")
     st.success(f"✅ {row['тапсырма']}")
     
+    # ==========================================
+    # 1. ПОРТФОЛИО (жетістіктер)
+    # ==========================================
+    with st.expander("🏆 Оқушының жетістіктері (портфолио)"):
+        if f"portfolio_{student}" not in st.session_state:
+            st.session_state[f"portfolio_{student}"] = [
+                {"Күні": "2024-12-10", "Жетістік": "Математика олимпиадасына қатысу", "Түрі": "🏅 Қатысу"},
+                {"Күні": "2024-11-05", "Жетістік": "Информатикадан аудандық олимпиадада 3-орын", "Түрі": "🥉 Жүлде"},
+            ]
+        
+        # Портфолио көрсету
+        if st.session_state[f"portfolio_{student}"]:
+            portfolio_df = pd.DataFrame(st.session_state[f"portfolio_{student}"])
+            st.dataframe(portfolio_df, use_container_width=True)
+        else:
+            st.info("Әлі жетістіктер жоқ.")
+        
+        # Жаңа жетістік қосу (тек admin/teacher)
+        if st.session_state.role in ["admin", "teacher"]:
+            with st.form(f"add_achievement_{student}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_date = st.date_input("Күні", value=datetime.today())
+                with col2:
+                    new_type = st.selectbox("Түрі", ["🏅 Қатысу", "🥉 Жүлде", "🥈 Жүлде", "🥇 Жүлде", "📜 Сертификат"])
+                new_achievement = st.text_input("Жетістік сипаттамасы")
+                if st.form_submit_button("➕ Жетістік қосу"):
+                    st.session_state[f"portfolio_{student}"].append({
+                        "Күні": str(new_date),
+                        "Жетістік": new_achievement,
+                        "Түрі": new_type
+                    })
+                    st.success("Жетістік қосылды!")
+                    st.rerun()
+    
+    # ==========================================
+    # 2. АТА-АНА-МҰҒАЛІМ ЧАТЫ
+    # ==========================================
+    with st.expander("💬 Ата-ана-мұғалім байланысы (чат)"):
+        if f"chat_{student}" not in st.session_state:
+            st.session_state[f"chat_{student}"] = []
+        
+        # Хабарларды көрсету
+        chat_msgs = st.session_state[f"chat_{student}"]
+        if chat_msgs:
+            for msg in chat_msgs:
+                if msg["рөл"] == "teacher":
+                    st.markdown(f"👩‍🏫 **Мұғалім** ({msg['уақыт']}): {msg['мәтін']}")
+                elif msg["рөл"] == "parent":
+                    st.markdown(f"👪 **Ата-ана** ({msg['уақыт']}): {msg['мәтін']}")
+                elif msg["рөл"] == "student":
+                    st.markdown(f"👨‍🎓 **Оқушы** ({msg['уақыт']}): {msg['мәтін']}")
+                elif msg["рөл"] == "admin":
+                    st.markdown(f"⚙️ **Әкімшілік** ({msg['уақыт']}): {msg['мәтін']}")
+        else:
+            st.info("Әлі хабар жоқ. Бірінші хабарды жазыңыз!")
+        
+        # Жаңа хабар жіберу (рөлге байланысты)
+        allowed_roles = []
+        if st.session_state.role == "teacher":
+            allowed_roles.append("teacher")
+        if st.session_state.role == "parent":
+            allowed_roles.append("parent")
+        if st.session_state.role == "student":
+            allowed_roles.append("student")
+        if st.session_state.role == "admin":
+            allowed_roles.append("admin")
+        
+        if allowed_roles:
+            with st.form(f"chat_form_{student}"):
+                msg_text = st.text_area("📝 Хабар жазыңыз", placeholder="Хабар мәтіні...")
+                submitted = st.form_submit_button("📤 Жіберу")
+                if submitted and msg_text.strip():
+                    st.session_state[f"chat_{student}"].append({
+                        "рөл": st.session_state.role,
+                        "уақыт": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "мәтін": msg_text
+                    })
+                    st.success("Хабар жіберілді!")
+                    st.rerun()
+        else:
+            st.info("Сіз бұл чатқа хабар жаза алмайсыз.")
+    
+    # ==========================================
+    # 3. БОЛЖАУ (бұрынғы)
+    # ==========================================
     with st.expander("🔮 Осы оқушыға болжау жасау"):
         st.markdown("Барлық модельдердің осы оқушы туралы болжамы:")
         student_data = [[row[s] for s in subjects] + [row['қатысу']]]
@@ -518,9 +611,11 @@ elif menu == "👤 Профиль":
             with col3:
                 st.write(f"{prob:.1f}%")
     
+    # ==========================================
+    # 4. Толық мәлімет
+    # ==========================================
     with st.expander("📋 Толық мәлімет"):
         st.dataframe(df[df['аты'] == student], use_container_width=True)
-
 # ===============================
 # 5. ХАБАР (ТОЛЫҚ)
 # ===============================
