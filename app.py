@@ -99,13 +99,16 @@ st.sidebar.write(f"**Қош келдіңіз, {st.session_state.username}!**")
 st.sidebar.write(f"Рөл: {st.session_state.role}")
 
 # Негізгі меню элементтері
+# Негізгі меню элементтері
 menu_items = ["🏠 Журнал", "📊 Аналитика", "🧠 Болжау", "👤 Профиль", "📲 Хабар", "🧾 PDF", "🏆 Рейтинг"]
 
-# Қосымша элементтер
+# Қосымша элементтер (рөлдерге байланысты)
 extra_items = []
 if st.session_state.role in ["admin", "teacher"]:
     extra_items.append("📅 Күнтізбе")
     extra_items.append("📋 Қатысу")
+    extra_items.append("📚 Кітапхана")        # <-- қосылды
+    extra_items.append("🧠 Ұсыныстар")        # <-- қосылды
 if st.session_state.role == "admin":
     extra_items.append("👥 Пайдаланушылар")
 
@@ -971,3 +974,171 @@ elif menu == "👥 Пайдаланушылар":
             del users[user_to_delete]
             st.success(f"{user_to_delete} жойылды!")
             st.rerun()
+# ===============================
+# 11. КІТАПХАНА (электронды кітаптар, оқу материалдары)
+# ===============================
+elif menu == "📚 Кітапхана":
+    st.title("📚 Электронды кітапхана")
+    
+    # Кітапхана деректерін сақтау (демо)
+    if "library_books" not in st.session_state:
+        st.session_state.library_books = [
+            {"Атауы": "Математика 8-сынып", "Авторы": "Әбілқасымов", "Пәні": "Математика", "Түрі": "📘 Оқулық", "Сілтеме": "https://example.com/math8.pdf"},
+            {"Атауы": "Физика есептері", "Авторы": "Төлегенов", "Пәні": "Физика", "Түрі": "📗 Есептер жинағы", "Сілтеме": "https://example.com/physics.pdf"},
+            {"Атауы": "Ағылшын тілі грамматикасы", "Авторы": "Браун", "Пәні": "ағылшын тілі", "Түрі": "📕 Грамматика", "Сілтеме": "https://example.com/english.pdf"},
+        ]
+    
+    # Фильтр
+    col1, col2 = st.columns(2)
+    with col1:
+        subject_filter = st.selectbox("📖 Пән бойынша фильтр", ["Барлығы"] + subjects)
+    with col2:
+        type_filter = st.selectbox("📂 Түрі бойынша фильтр", ["Барлығы", "📘 Оқулық", "📗 Есептер жинағы", "📕 Грамматика", "📙 Тесттер"])
+    
+    # Фильтрлеу
+    filtered_books = st.session_state.library_books
+    if subject_filter != "Барлығы":
+        filtered_books = [b for b in filtered_books if b["Пәні"] == subject_filter]
+    if type_filter != "Барлығы":
+        filtered_books = [b for b in filtered_books if b["Түрі"] == type_filter]
+    
+    if not filtered_books:
+        st.info("Бұл фильтр бойынша ешқандай кітап табылмады.")
+    else:
+        for book in filtered_books:
+            with st.container():
+                st.markdown(f"##### {book['Атауы']}")
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.write(f"✍️ {book['Авторы']}  |  {book['Пәні']}  |  {book['Түрі']}")
+                with col3:
+                    st.link_button("📖 Оқу", book["Сілтеме"], use_container_width=True)
+                st.divider()
+    
+    # Жаңа кітап қосу (тек admin/teacher)
+    if st.session_state.role in ["admin", "teacher"]:
+        with st.expander("➕ Жаңа кітап/материал қосу"):
+            with st.form("add_book_form"):
+                title = st.text_input("Кітап атауы")
+                author = st.text_input("Авторы")
+                subject = st.selectbox("Пәні", subjects)
+                book_type = st.selectbox("Түрі", ["📘 Оқулық", "📗 Есептер жинағы", "📕 Грамматика", "📙 Тесттер", "📄 Мақала"])
+                link = st.text_input("Сілтеме (URL)")
+                if st.form_submit_button("📥 Қосу"):
+                    if title and link:
+                        st.session_state.library_books.append({
+                            "Атауы": title,
+                            "Авторы": author if author else "Белгісіз",
+                            "Пәні": subject,
+                            "Түрі": book_type,
+                            "Сілтеме": link
+                        })
+                        st.success(f"«{title}» кітапханаға қосылды!")
+                        st.rerun()
+                    else:
+                        st.error("Атауы мен сілтеме міндетті!")
+# ===============================
+# 12. 🧠 НЕЙРОНДЫҚ ЖЕЛІ АРҚЫЛЫ ҰСЫНЫСТАР
+# ===============================
+elif menu == "🧠 Ұсыныстар":
+    st.title("🧠 Жасанды интеллект ұсыныстары")
+    st.markdown("Оқушының үлгеріміне қарай, AI арнайы ұсыныстар береді.")
+    
+    # Оқушыны таңдау (рөлге байланысты)
+    if st.session_state.role in ["parent", "student"]:
+        student = st.session_state.child
+    else:
+        student = st.selectbox("👨‍🎓 Оқушы таңдаңыз", df['аты'])
+    
+    row = df[df['аты'] == student].iloc[0]
+    weak_subject = row['ең әлсіз пән']
+    avg_score = row['орташа балл']
+    
+    st.subheader(f"📊 {student} оқушысының талдауы")
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("Орташа балл", f"{avg_score:.1f}")
+    with col2: st.metric("Ең әлсіз пән", weak_subject)
+    with col3: st.metric("Қатысу", f"{row['қатысу']}%")
+    
+    st.divider()
+    
+    # ===== КІТАП ҰСЫНЫСТАРЫ =====
+    st.subheader("📚 Оқуға ұсынылатын кітаптар мен материалдар")
+    
+    # Кітапханадағы кітаптарды пән бойынша сүзу
+    recommended_books = []
+    if "library_books" in st.session_state:
+        for book in st.session_state.library_books:
+            if book["Пәні"] == weak_subject:
+                recommended_books.append(book)
+    
+    if recommended_books:
+        for book in recommended_books[:3]:  # ең көбі 3 кітап
+            st.markdown(f"📖 **{book['Атауы']}** – {book['Авторы']} ({book['Түрі']})")
+            st.link_button("🔗 Сілтеме", book["Сілтеме"], key=f"rec_{book['Атауы']}")
+    else:
+        st.info(f"❌ {weak_subject} пәні бойынша әлі кітап жоқ. Кітапханаға материалдар қосыңыз.")
+    
+    st.divider()
+    
+    # ===== ТАПСЫРМА ҰСЫНЫСТАРЫ =====
+    st.subheader("📝 Жеке тапсырмалар ұсынысы")
+    
+    if avg_score < 50:
+        st.error(f"""
+        🔴 **Жедел көмек қажет!**
+        
+        - {weak_subject} пәнінен күнделікті 40 минут жұмыс істеу керек.
+        - Мұғалімнен қосымша сабақ сұрау.
+        - Аптасына 3 рет тест тапсыру.
+        """)
+    elif avg_score < 70:
+        st.warning(f"""
+        🟡 {weak_subject} пәнін жақсарту қажет.
+        
+        **Ұсыныс:**
+        - Күніне 20 минут есеп шығару.
+        - {weak_subject} пәнінен 2-3 есептен тұратын күнделікті тапсырма.
+        """)
+    else:
+        st.success(f"""
+        🟢 Жақсы нәтиже! Деңгейіңізді сақтап, олимпиадаға дайындалуға болады.
+        
+        **Келесі қадамдар:**
+        - {weak_subject} пәнінен тереңдетілген тапсырмалар.
+        - Онлайн олимпиадаларға қатысу.
+        """)
+    
+    st.divider()
+    
+    # ===== ВИДЕО САБАҚ ҰСЫНЫСТАРЫ =====
+    st.subheader("🎥 Видео сабақтар")
+    video_suggestions = {
+        "Математика": "https://www.youtube.com/results?search_query=математика+8+сынып+сабақ",
+        "Физика": "https://www.youtube.com/results?search_query=физика+есептер+шығару",
+        "Информатика": "https://www.youtube.com/results?search_query=информатика+негіздері",
+        "Қазақ тілі": "https://www.youtube.com/results?search_query=қазақ+тілі+грамматика",
+        "Ағылшын тілі": "https://www.youtube.com/results?search_query=ағылшын+тілі+сабақ"
+    }
+    if weak_subject in video_suggestions:
+        st.markdown(f"📺 **{weak_subject}** пәні бойынша бейнесабақтар:")
+        st.link_button("🎬 YouTube-тан іздеу", video_suggestions[weak_subject], use_container_width=True)
+    
+    st.divider()
+    
+    # ===== АНАЛИТИКАЛЫҚ ҰСЫНЫС (ML модель негізінде) =====
+    st.subheader("🤖 ML модель негізіндегі болжам")
+    
+    # Оқушының қазіргі деректерімен қауіп ықтималдығын есептеу
+    student_data = [[row[s] for s in subjects] + [row['қатысу']]]
+    risk_proba = trained_models['Random Forest'].predict_proba(student_data)[0][1] * 100
+    
+    if risk_proba > 70:
+        st.error(f"⚠️ Қауіп ықтималдығы: {risk_proba:.1f}%. Дереу әрекет ету керек!")
+        st.markdown("Ұсыныс: Ата-анамен кездесу, жеке оқу жоспарын құру.")
+    elif risk_proba > 40:
+        st.warning(f"⚠️ Қауіп ықтималдығы: {risk_proba:.1f}%. Назар аудару қажет.")
+        st.markdown("Ұсыныс: Аптасына 2 рет қосымша сабақтар ұйымдастыру.")
+    else:
+        st.success(f"✅ Қауіп ықтималдығы: {risk_proba:.1f}%. Жағдай тұрақты.")
+        st.markdown("Ұсыныс: Жетістікті сақтау үшін осылай жалғастырыңыз.")
