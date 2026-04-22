@@ -75,13 +75,16 @@ if st.sidebar.button("🚪 Шығу", use_container_width=True):
 st.sidebar.title("📚 Smart School Portal")
 st.sidebar.write(f"**Қош келдіңіз, {st.session_state.username}!** (Рөл: {st.session_state.role})")
 
-menu_items = ["🏠 Журнал", "📊 Аналитика", "🧠 Болжау", "👤 Профиль", "📲 Хабар", "🧾 PDF", "🏆 Рейтинг"]
+menu_items = ["🏠 Журнал", "📊 Аналитика", "🧠 Болжау", "👤 Профиль", "📲 Хабар", "🧾 PDF", "🏆 Рейтинг", "🧪 Виртуалды зертхана"]
 extra_items = []
 if st.session_state.role in ["admin", "teacher"]:
     extra_items.extend(["📅 Күнтізбе", "📋 Қатысу", "📚 Кітапхана", "🧠 Ұсыныстар", "😊 Психология"])
 if st.session_state.role == "admin":
     extra_items.append("👥 Пайдаланушылар")
 menu = st.sidebar.radio("Бөлімдер:", menu_items + extra_items, index=0)
+
+if st.session_state.role in ["admin", "teacher", "parent", "student"]:
+    extra_items.append("🧪 Виртуалды зертхана")
 
 # ---------- ДЕРЕКТЕР ----------
 uploaded = st.sidebar.file_uploader("📂 Excel файл жүктеу", type=["xlsx"])
@@ -677,3 +680,115 @@ elif menu == "👥 Пайдаланушылар":
     if st.button("Жою") and del_user != "admin":
         del users[del_user]
         st.rerun()
+# ======================== 15. ВИРТУАЛДЫ ЗЕРТХАНА ========================
+elif menu == "🧪 Виртуалды зертхана":
+    st.title("🧪 Виртуалды зертхана")
+    st.markdown("Төмендегі интерактивті симуляциялар арқылы физикалық және математикалық процестерді зерттеңіз.")
+    
+    tab1, tab2, tab3 = st.tabs(["📐 Математикалық маятник", "⚡ Конденсатордың заряды", "🎲 Кездейсоқ оқиғалар"])
+    
+    # ----- 1. МАТЕМАТИКАЛЫҚ МАЯТНИК -----
+    with tab1:
+        st.subheader("Математикалық маятник тербелісі")
+        st.markdown("Маятниктің ұзындығы мен бастапқы бұрышын өзгертіп, тербеліс периодын бақылаңыз.")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            length = st.slider("Жіптің ұзындығы (м)", 0.5, 5.0, 1.5, 0.1)
+            angle = st.slider("Бастапқы бұрыш (градус)", 5, 45, 15, 1)
+            g = st.number_input("Еркін түсу үдеуі (м/с²)", value=9.81, step=0.01)
+        
+        # Периодты есептеу (кіші бұрыштар үшін жуықтап)
+        period = 2 * np.pi * np.sqrt(length / g)
+        st.metric("Тербеліс периоды (шамамен)", f"{period:.3f} с")
+        
+        # Симуляция графигі (уақыт бойынша бұрыш)
+        t = np.linspace(0, 5 * period, 500)
+        theta = angle * np.pi / 180 * np.cos(2 * np.pi / period * t)
+        
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.plot(t, theta * 180 / np.pi, label="Бұрыш (градус)", color='blue')
+        ax.set_xlabel("Уақыт (с)")
+        ax.set_ylabel("Бұрыш (°)")
+        ax.set_title("Маятник тербелісі")
+        ax.grid(True)
+        ax.legend()
+        st.pyplot(fig)
+        
+        # Анимация (қарапайым – сурет ретінде)
+        st.info("ℹ️ Нақты анимация үшін параметрлерді өзгертіп, графикті қараңыз.")
+    
+    # ----- 2. КОНДЕНСАТОРДЫҢ ЗАРЯДЫ (RC-ТІЗБЕК) -----
+    with tab2:
+        st.subheader("RC-тізбектегі конденсатордың заряды")
+        st.markdown("Кедергі мен сыйымдылықты өзгертіп, зарядталу процесін бақылаңыз.")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            R = st.slider("Кедергі R (кОм)", 0.1, 10.0, 1.0, 0.1) * 1000  # Ом
+            C = st.slider("Сыйымдылық C (мкФ)", 10, 1000, 100, 10) * 1e-6  # Фарад
+            V0 = 5.0  # Кернеу, В
+        
+        tau = R * C
+        t = np.linspace(0, 5 * tau, 500)
+        Vc = V0 * (1 - np.exp(-t / tau))
+        
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.plot(t, Vc, label="Конденсатор кернеуі", color='green')
+        ax.axhline(y=V0, color='red', linestyle='--', label="Қорек кернеуі")
+        ax.set_xlabel("Уақыт (с)")
+        ax.set_ylabel("Кернеу (В)")
+        ax.set_title("RC-тізбектің өтпелі процесі")
+        ax.grid(True)
+        ax.legend()
+        st.pyplot(fig)
+        
+        st.metric("Уақыт тұрақтысы τ", f"{tau:.4f} с")
+        st.caption("Конденсатор кернеуі қорек кернеуінің 63% -на τ уақытта жетеді.")
+    
+    # ----- 3. КЕЗДЕЙСОҚ ОҚИҒАЛАР (Монета лақтыру) -----
+    with tab3:
+        st.subheader("Монета лақтыру симуляциясы")
+        st.markdown("Монетаны қанша рет лақтырғыңыз келетінін таңдаңыз.")
+        
+        n_tosses = st.slider("Лақтыру саны", 10, 10000, 100, 100)
+        if st.button("🎲 Симуляцияны бастау"):
+            # Кездейсоқ нәтижелер (0 – әттеш, 1 – бүркіт)
+            results = np.random.choice([0, 1], size=n_tosses)
+            heads = np.sum(results)
+            tails = n_tosses - heads
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Бүркіт саны", heads)
+                st.metric("Бүркіт үлесі", f"{heads/n_tosses:.2%}")
+            with col2:
+                st.metric("Әттеш саны", tails)
+                st.metric("Әттеш үлесі", f"{tails/n_tosses:.2%}")
+            
+            # Гистограмма
+            fig, ax = plt.subplots()
+            ax.bar(["Бүркіт", "Әттеш"], [heads, tails], color=['gold', 'silver'])
+            ax.set_ylabel("Саны")
+            ax.set_title(f"{n_tosses} лақтыру нәтижесі")
+            st.pyplot(fig)
+            
+            # Теориялық ықтималдықпен салыстыру
+            st.caption("Теориялық ықтималдық: 50% / 50%")
+        else:
+            st.info("Симуляцияны бастау үшін түймені басыңыз.")
+    
+    # Қосымша: Python-кодын сынау ортасы (қауіпсіз, exec қолданылмайды)
+    st.divider()
+    st.subheader("🐍 Python калькуляторы")
+    st.markdown("Қарапайым Python өрнектерін есептеуге арналған құрал (мысалы: 2+2, sin(pi/2), 10**3).")
+    expr = st.text_input("Өрнек енгізіңіз", value="2 + 3 * 4")
+    if st.button("Есептеу"):
+        try:
+            # Қауіпсіз есептеу (тек математикалық функциялар)
+            allowed_names = {k: v for k, v in np.__dict__.items() if not k.startswith("_")}
+            allowed_names.update({k: v for k, v in math.__dict__.items() if not k.startswith("_")})
+            result = eval(expr, {"__builtins__": {}}, allowed_names)
+            st.success(f"Нәтиже: {result}")
+        except Exception as e:
+            st.error(f"Қате: {e}")
