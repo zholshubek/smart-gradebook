@@ -578,21 +578,41 @@ elif menu == "📲 Хабар":
         st.markdown(f"📧 Жіберу үшін: `{student.lower()}@school.kz` (көшіріңіз)")
 
 # ===============================
-# 6. PDF (ТОЛЫҚ)
+# ===============================
+# 6. PDF (РӨЛГЕ ҚАРАЙ ФИЛЬТР)
 # ===============================
 elif menu == "🧾 PDF":
     st.title("🧾 PDF есеп шығару")
-    student = st.selectbox("Оқушы таңдаңыз", df['аты'])
-    row = df[df['аты'] == student].iloc[0]
     
+    # Рөлге байланысты оқушы таңдау
+    if st.session_state.role in ["parent", "student"]:
+        # Ата-ана немесе оқушы өзінің баласын/өзін ғана көреді
+        student = st.session_state.child
+        st.info(f"📌 Сіз **{student}** оқушысының есебін жүктей аласыз.")
+        rows = df[df['аты'] == student]
+        if rows.empty:
+            st.error(f"❌ {student} оқушысы туралы деректер табылмады.")
+            st.stop()
+        row = rows.iloc[0]
+    else:
+        # Admin немесе teacher барлық оқушыны таңдай алады
+        student = st.selectbox("👨‍🎓 Оқушы таңдаңыз", df['аты'])
+        row = df[df['аты'] == student].iloc[0]
+    
+    # Негізгі мәліметтер
     col1, col2, col3 = st.columns(3)
-    with col1: st.metric("Орташа балл", f"{row['орташа балл']:.1f}")
-    with col2: st.metric("Қатысу", f"{row['қатысу']}%")
-    with col3: st.metric("Әлсіз пән", row['ең әлсіз пән'])
+    with col1:
+        st.metric("📈 Орташа балл", f"{row['орташа балл']:.1f}")
+    with col2:
+        st.metric("📅 Қатысу", f"{row['қатысу']}%")
+    with col3:
+        st.metric("📚 Әлсіз пән", row['ең әлсіз пән'])
+    
     st.info(f"💡 {row['AI'][:100]}...")
     
     if st.button("📄 PDF жасау", type="primary", use_container_width=True):
-        with st.spinner("PDF дайындалуда..."):
+        with st.spinner("⏳ PDF дайындалуда..."):
+            # --- График 1: Пәндер бойынша балл ---
             chart1_path = "chart1.png"
             plt.figure(figsize=(6, 4))
             scores = [row[s] for s in subjects]
@@ -606,6 +626,7 @@ elif menu == "🧾 PDF":
             plt.savefig(chart1_path)
             plt.close()
             
+            # --- График 2: Прогресс ---
             chart2_path = "chart2.png"
             plt.figure(figsize=(6, 4))
             plt.plot(['Өткен ай', 'Қазір'], [row['өткен'], row['орташа балл']], marker='o', linewidth=2, markersize=8)
@@ -617,6 +638,7 @@ elif menu == "🧾 PDF":
             plt.savefig(chart2_path)
             plt.close()
             
+            # --- PDF құру ---
             doc = SimpleDocTemplate("report.pdf", pagesize=letter)
             styles = getSampleStyleSheet()
             if FONT_AVAILABLE:
@@ -641,6 +663,7 @@ elif menu == "🧾 PDF":
             content.append(Paragraph(f"Тапсырма: {row['тапсырма']}", normal_style))
             content.append(Spacer(1, 15))
             
+            # Бағалар кестесі
             table_data = [["Пән", "Балл", "Деңгей"]]
             for s in subjects:
                 score = row[s]
@@ -663,11 +686,17 @@ elif menu == "🧾 PDF":
             content.append(Image(chart2_path, width=400, height=250))
             doc.build(content)
         
+        # PDF жүктеу
         with open("report.pdf", "rb") as f:
             pdf_bytes = f.read()
         st.success("✅ PDF сәтті құрылды!")
-        st.download_button("📥 PDF жүктеу", pdf_bytes, file_name=f"{student}_есеп.pdf", use_container_width=True)
-
+        st.download_button(
+            "📥 PDF жүктеу",
+            pdf_bytes,
+            file_name=f"{student}_есеп.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
 # ===============================
 # 7. РЕЙТИНГ (ТОЛЫҚ)
 # ===============================
