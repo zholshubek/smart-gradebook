@@ -415,7 +415,8 @@ elif menu == "🧠 Болжау":
             st.info("ℹ️ **Ескерту:** Бағалары төмен, бірақ модельдер қауіпсіз деп тұр. Бұл жағдайды қадағалаңыз.")
 
 # ===============================
-# 4. ПРОФИЛЬ (сіздің толық нұсқаңыз)
+# ===============================
+# 4. ПРОФИЛЬ (ТҮЗЕТІЛГЕН)
 # ===============================
 elif menu == "👤 Профиль":
     st.title("👤 Оқушы профилі")
@@ -434,10 +435,12 @@ elif menu == "👤 Профиль":
     scores = [row[s] for s in subjects]
     bars = ax.bar(subjects, scores)
     colors_bar = ['#4CAF50' if x >= 70 else '#FFC107' if x >= 50 else '#F44336' for x in scores]
-    for bar, color in zip(bars, colors_bar): bar.set_color(color)
+    for bar, color in zip(bars, colors_bar):
+        bar.set_color(color)
     ax.axhline(y=60, color='red', linestyle='--', alpha=0.7)
     ax.set_ylim(0, 100)
-    for bar, val in zip(bars, scores): ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, str(val), ha='center', fontsize=10)
+    for bar, val in zip(bars, scores):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, str(val), ha='center', fontsize=10)
     plt.xticks(rotation=45)
     st.pyplot(fig)
     
@@ -455,25 +458,24 @@ elif menu == "👤 Профиль":
     st.success(f"✅ {row['тапсырма']}")
     
     with st.expander("🔮 Осы оқушыға болжау жасау"):
-    st.markdown("Барлық модельдердің осы оқушы туралы болжамы:")
-    student_data = [[row[s] for s in subjects] + [row['қатысу']]]
-    for name, mdl in trained_models.items():
-        pred = mdl.predict(student_data)[0]
-        prob = mdl.predict_proba(student_data)[0][1] * 100
-        col1, col2, col3 = st.columns([2, 1, 1])
-        with col1:
-            st.write(f"**{name}**")
-        with col2:
-            if pred == 1:
-                st.error("⚠️ Қауіпті")
-            else:
-                st.success("✅ Қауіпсіз")
-        with col3:
-            st.write(f"{prob:.1f}%")
+        st.markdown("Барлық модельдердің осы оқушы туралы болжамы:")
+        student_data = [[row[s] for s in subjects] + [row['қатысу']]]
+        for name, mdl in trained_models.items():
+            pred = mdl.predict(student_data)[0]
+            prob = mdl.predict_proba(student_data)[0][1] * 100
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                st.write(f"**{name}**")
+            with col2:
+                if pred == 1:
+                    st.error("⚠️ Қауіпті")
+                else:
+                    st.success("✅ Қауіпсіз")
+            with col3:
+                st.write(f"{prob:.1f}%")
     
     with st.expander("📋 Толық мәлімет"):
         st.dataframe(df[df['аты'] == student], use_container_width=True)
-
 # ===============================
 # 5. ХАБАР (толық нұсқа)
 # ===============================
